@@ -1,0 +1,45 @@
+Summary: StreamDeck Control Daemon
+Name: streamdeckd
+Version: @VERSION@
+Release: 1
+URL: https://github.com/drepper/streamdeckd
+Source: https://github.com/drepper/streamdeckd/archive/streamdeckd-@VERSION@.tar.xz
+License: GPLv2
+
+%define abi @ABI@
+%define sharedir %{_datadir}/streamdeckd-@VERSION@
+
+Requires: libstdc++
+BuildRequires: streamdeckpp-devel
+BuildRequires: keylightpp-devel
+BuildRequires: libconfig-devel
+BuildRequires: cpprest-devel
+BuildRequires: openssl-devel
+BuildRequires: gcc-c++ >= 10.1
+
+%description
+
+This daemon allows the use of a StreamDeck to control a configurable set
+of actions.
+
+%prep
+%setup -q
+
+%build
+make OPTS="${RPM_OPT_FLAGS}"
+
+%install
+rm -rf ${RPM_BUILD_ROOT}
+mkdir -p ${RPM_BUILD_ROOT}%{_prefix}
+
+%make_install
+
+%files
+%defattr(-,root,root)
+%doc README.md
+%{_bindir}/streamdeckd
+%{sharedir}/*
+
+%changelog
+* Tue Sep 8 2020 Ulrich Drepper <drepper@gmail.com> 1.0-1
+- First release

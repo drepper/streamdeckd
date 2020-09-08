@@ -1,0 +1,4 @@
+*.o
+streamdeckd
+streamdeckd-*.tar.xz
+streamdeckd.spec
