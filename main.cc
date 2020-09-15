@@ -92,7 +92,7 @@ namespace {
 
     void run();
   private:
-    streamdeck::context ctx = streamdeck::context(SHAREDIR);
+    streamdeck::context ctx;
 
     bool has_keylights = false;
     keylightpp::device_list_type keylights;
@@ -157,8 +157,12 @@ namespace {
 
                 if (valid) {
                   std::string iconname;
-                  if (key.lookupValue("icon", iconname))
-                    d->set_key_image(k, iconname.c_str());
+                  if (key.lookupValue("icon", iconname)) {
+                    auto path = std::filesystem::path(iconname);
+                    if (path.is_relative())
+                      path = std::filesystem::path(SHAREDIR) / path;
+                    d->set_key_image(k, path.c_str());
+                  }
                 }
               }
             }

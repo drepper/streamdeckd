@@ -69,7 +69,7 @@ rpm: dist
 	$(RPMBUILD) -tb streamdeckd-$(VERSION).tar.xz
 
 clean:
-	$(RM_F) streamdeck main.o streamdeckd.spec
+	$(RM_F) streamdeck main.o streamdeckd.spec streamdeckd.desktop
 
 .PHONY: all install dist srpm rpm clean
 .ONESHELL:
