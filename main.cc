@@ -93,6 +93,7 @@ namespace {
     void run();
   private:
     streamdeck::context ctx;
+    streamdeck::device_type* dev = nullptr;
 
     bool has_keylights = false;
     keylightpp::device_list_type keylights;
@@ -109,7 +110,10 @@ namespace {
     if (! config.lookupValue("serial", serial))
       serial = "";
 
-    for (auto& d : ctx)
+    for (auto& d : ctx) {
+      if (! d->connected())
+        continue;
+
       if (serial == "" || d->get_serial_number() == serial) {
         d->reset();
 
@@ -167,19 +171,24 @@ namespace {
               }
             }
           }
+          dev = d.get();
         }
         catch (libconfig::SettingNotFoundException&) {
           // No key settings.
         }
         break;
       }
+    }
+
+    if (dev == nullptr)
+      throw std::runtime_error("no device available");
   }
 
 
   void deck_config::run()
   {
     while (true) {
-      auto ss = ctx[0]->read();
+      auto ss = dev->read();
       unsigned k = 0;
       for (auto s : ss) {
         if (s != 0)
