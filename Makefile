@@ -46,15 +46,21 @@ streamdeckd.spec: streamdeckd.spec.in Makefile
 	$(SED) 's/@VERSION@/$(VERSION)/' $< > $@-tmp
 	$(MV_F) $@-tmp $@
 
-install: streamdeckd
+streamdeckd.desktop: streamdeckd.desktop.in Makefile
+	$(SED) 's/@VERSION@/$(VERSION)/;s/@PREFIX@/$(prefix)/' $< > $@-tmp
+	$(MV_F) $@-tmp $@
+
+install: streamdeckd streamdeckd.desktop
 	$(INSTALL) -D -c -m 755 streamdeckd $(DESTDIR)$(bindir)/streamdeckd
 	for p in $(PNGS); do \
 	  $(INSTALL) -D -c -m 644 $$p $(DESTDIR)$(sharedir)/$$p; \
 	done
+	$(INSTALL) -D -c -m 644 streamdeckd.desktop $(DESTDIR)$(prefix)/share/applications/streamdeckd.desktop
+	$(INSTALL) -D -c -m 644 streamdeckd.svg $(DESTDIR)$(prefix)/share/icons/hicolor/scalable/apps/streamdeckd.svg
 
-dist: streamdeckd.spec
+dist: streamdeckd.spec streamdeckd.desktop
 	$(LN_FS) . streamdeckd-$(VERSION)
-	$(TAR) achf streamdeckd-$(VERSION).tar.xz streamdeckd-$(VERSION)/{Makefile,main.cc,README.md,streamdeckd.spec,streamdeckd.spec.in,*.svg,*.png}
+	$(TAR) achf streamdeckd-$(VERSION).tar.xz streamdeckd-$(VERSION)/{Makefile,main.cc,README.md,streamdeckd.spec,streamdeckd.spec.in,streamdeckd.desktop.in,*.svg,*.png}
 	$(RM_F) streamdeckd-$(VERSION)
 
 srpm: dist

@@ -1,7 +1,7 @@
 Summary: StreamDeck Control Daemon
 Name: streamdeckd
 Version: @VERSION@
-Release: 1
+Release: 2
 URL: https://github.com/drepper/streamdeckd
 Source: https://github.com/drepper/streamdeckd/archive/streamdeckd-@VERSION@.tar.xz
 License: GPLv2
@@ -39,7 +39,11 @@ mkdir -p ${RPM_BUILD_ROOT}%{_prefix}
 %doc README.md
 %{_bindir}/streamdeckd
 %{sharedir}/*
+%{_datadir}/applications/streamdeckd.desktop
+%{_datadir}/icons/hicolor/scalable/apps/streamdeckd.svg
 
 %changelog
+* Tue Sep 15 2020 Ulrich Drepper <drepper@gmail.com> 1.0-2
+- Add .desktop file and icon
 * Tue Sep 8 2020 Ulrich Drepper <drepper@gmail.com> 1.0-1
 - First release
