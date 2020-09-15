@@ -47,7 +47,7 @@ streamdeckd.spec: streamdeckd.spec.in Makefile
 	$(MV_F) $@-tmp $@
 
 streamdeckd.desktop: streamdeckd.desktop.in Makefile
-	$(SED) 's/@VERSION@/$(VERSION)/;s|@PREFIX@|$(prefix)|' $< > $@-tmp
+	$(SED) 's/@VERSION@/$(VERSION)/' $< > $@-tmp
 	$(MV_F) $@-tmp $@
 
 install: streamdeckd streamdeckd.desktop
