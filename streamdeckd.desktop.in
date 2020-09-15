@@ -1,6 +1,7 @@
 [Desktop Entry]
 Version=@VERSION@
 Type=Application
+Encoding=UTF-8
 Name=StreamDeck Daemon
 Comment=Configurable daemon to handle StreamDeck
 Exec=@PREFIX@/bin/streamdeckd
