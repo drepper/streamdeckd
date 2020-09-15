@@ -42,11 +42,7 @@ all: streamdeckd
 streamdeckd: main.o
 	$(CXX) $(LDFLAGS) -o $@ $^ $(LIBS)
 
-streamdeckd.spec: streamdeckd.spec.in Makefile
-	$(SED) 's/@VERSION@/$(VERSION)/' $< > $@-tmp
-	$(MV_F) $@-tmp $@
-
-streamdeckd.desktop: streamdeckd.desktop.in Makefile
+streamdeckd.spec streamdeckd.desktop: %: %.in Makefile
 	$(SED) 's/@VERSION@/$(VERSION)/' $< > $@-tmp
 	$(MV_F) $@-tmp $@
 
