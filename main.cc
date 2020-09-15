@@ -78,7 +78,8 @@ namespace {
     execute(std::string&& command_) : command(std::move(command_)) { }
 
     void call() final override {
-      system(command.c_str());
+      auto _ = system(command.c_str());
+      (void) _;
     }
 
   private:

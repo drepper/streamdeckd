@@ -11,13 +11,13 @@ RPMBUILD = rpmbuild
 PKG_CONFIG = pkg-config
 
 CXXSTD = -std=gnu++20
-CXXFLAGS = $(OPT) $(DEBUG) $(CXXFLAGS-$@) $(WARN)
+CXXFLAGS = $(OPTS) $(DEBUG) $(CXXFLAGS-$@) $(WARN)
 CPPFLAGS = $(INCLUDES) $(DEFINES)
 LDFLAGS = $(LDFLAGS-$@)
 
 DEFINES = $(DEFINES-$@)
 INCLUDES = $(shell $(PKG_CONFIG) --cflags $(DEPPKGS))
-OPT = -O0
+OPTS = -O0
 DEBUG = -g3
 WARN = -Wall
 
