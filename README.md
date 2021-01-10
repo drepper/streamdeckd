@@ -23,6 +23,12 @@ which is using the syntax of libconfig.  It could look as follows:
       	icon: "brightness-.png";
       };
     
+      r2c1: {
+        type: "key";
+        sequence: "alt+ctrl+shift+1"
+        icon: "preview1.png";
+      };
+
       r4c1: {
       	type: "execute";
       	command: "chromium-browser --new-window https://example.com/path";
@@ -40,7 +46,7 @@ key that is used.  The individual keys are specified as `rXcY` which `X` is the 
 
 The definition for the individual keys is a dictionary again.  It must always contain entries `type`
 and `icon`.  The latter is the name of the file to use as the icon on the respective key.  The `type`
-entry specifies what happens when the key is pressed.  Currently two types are defined:
+entry specifies what happens when the key is pressed.  Currently three types are defined:
 
 * `execute` which requires an additional dicionary item `command`. The string value of `command` is
   passed to the `system` function to be executed when the respective button is pressed.
@@ -52,6 +58,11 @@ entry specifies what happens when the key is pressed.  Currently two types are d
   given only a device with the given serial number is affected.  Otherwise all found devices are
   controlled.
 
+* `key` which is used to send the key sequence specified in the dictionary item `sequence` to the
+  current window.  This by itself can be useful, a shortcut sequence for an editor or game can
+  be issued.  Some programs listen for key sequences globally and if the specified key sequence
+  is obscure enough this causes no problems.  In the example above the key `1` is sent with the
+  modifiers Alt, Ctrl, and Shift.  Note the string notation to specify this.
 
 Notes
 -----
