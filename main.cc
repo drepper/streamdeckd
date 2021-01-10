@@ -5,11 +5,16 @@
 #include <unistd.h>
 
 #include <libconfig.h++>
+extern "C" {
+  // libxdo is not prepared for C++ and the X headers define stray macros.
+#include <xdo.h>
+#undef BadRequest
+}
 #include <keylightpp.hh>
 #include <streamdeckpp.hh>
 
 // XYZ Debug
-#include <iostream>
+// #include <iostream>
 
 
 using namespace std::string_literals;
@@ -87,6 +92,18 @@ namespace {
   };
 
 
+  struct keypress final : public action {
+    keypress(std::string&& sequence_, xdo_t* xdo_) : sequence(std::move(sequence_)), xdo(xdo_) { }
+
+    void call() final override {
+      xdo_send_keysequence_window(xdo, CURRENTWINDOW, sequence.c_str(), 100000);
+    }
+  private:
+    std::string sequence;
+    xdo_t* xdo;
+  };
+
+
   struct deck_config {
     deck_config(const std::filesystem::path& conffile);
 
@@ -97,6 +114,7 @@ namespace {
 
     bool has_keylights = false;
     keylightpp::device_list_type keylights;
+    xdo_t* xdo = nullptr;
     std::map<unsigned,std::unique_ptr<action>> actions;
   };
 
@@ -157,6 +175,13 @@ namespace {
                 } else if (std::string(key["type"]) == "execute" && key.exists("command")) {
                   actions[k] = std::make_unique<execute>(std::string(key["command"]));
                   valid = true;
+                } else if (std::string(key["type"]) == "key" && key.exists("sequence")) {
+                  if (xdo == nullptr)
+                    xdo = xdo_new(nullptr);
+                  if (xdo != nullptr) {
+                    actions[k] = std::make_unique<keypress>(std::string(key["sequence"]), xdo);
+                    valid = true;
+                  }
                 }
 
                 if (valid) {

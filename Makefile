@@ -1,4 +1,4 @@
-VERSION = 0.1
+VERSION = 1.1
 
 CXX = g++ $(CXXSTD)
 INSTALL = install
@@ -21,7 +21,7 @@ OPTS = -O0
 DEBUG = -g3
 WARN = -Wall
 
-LIBS = $(shell $(PKG_CONFIG) --libs $(DEPPKGS)) -lcpprest -lpthread
+LIBS = $(shell $(PKG_CONFIG) --libs $(DEPPKGS)) -lcpprest -lxdo -lpthread
 
 prefix = /usr
 bindir = $(prefix)/bin
@@ -31,7 +31,7 @@ IFACEPKGS =
 DEPPKGS = libconfig++ keylightpp streamdeckpp libcrypto
 ALLPKGS = $(IFACEPKGS) $(DEPPKGS)
 
-SVGS = brightness+.svg brightness-.svg color+.svg color-.svg
+SVGS = brightness+.svg brightness-.svg color+.svg color-.svg preview1.svg preview2.svg transition.svg
 PNGS = $(SVGS:.svg=.png) bulb_on.png bulb_off.png bluejeans.png
 
 DEFINES-main.o = -DSHAREDIR=\"$(sharedir)\"
