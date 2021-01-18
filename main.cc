@@ -93,13 +93,15 @@ namespace {
 
 
   struct keypress final : public action {
-    keypress(std::string&& sequence_, xdo_t* xdo_) : sequence(std::move(sequence_)), xdo(xdo_) { }
+    keypress(std::string&& sequence, xdo_t* xdo_) : sequence_list(1, std::move(sequence)), xdo(xdo_) { }
+    keypress(std::list<std::string>&& sequence_list_, xdo_t* xdo_) : sequence_list(std::move(sequence_list_)), xdo(xdo_) { }
 
     void call() final override {
-      xdo_send_keysequence_window(xdo, CURRENTWINDOW, sequence.c_str(), 100000);
+      for (const auto& sequence : sequence_list)
+        xdo_send_keysequence_window(xdo, CURRENTWINDOW, sequence.c_str(), 100000);
     }
   private:
-    std::string sequence;
+    std::list<std::string> sequence_list;
     xdo_t* xdo;
   };
 
@@ -179,8 +181,24 @@ namespace {
                   if (xdo == nullptr)
                     xdo = xdo_new(nullptr);
                   if (xdo != nullptr) {
-                    actions[k] = std::make_unique<keypress>(std::string(key["sequence"]), xdo);
-                    valid = true;
+                    auto& seq = key.lookup("sequence");
+                    if (seq.isScalar()) {
+                      actions[k] = std::make_unique<keypress>(std::string(seq), xdo);
+                      valid = true;
+                    } else if (seq.isList() && seq.getLength() > 0) {
+                      std::list<std::string> l;
+                      for (auto& sseq : seq) {
+                        if (! sseq.isScalar()) {
+                          l.clear();
+                          break;
+                        }
+                        l.emplace_back(std::move(std::string(sseq)));
+                      }
+                      if (l.size() > 0) {
+                        actions[k] = std::make_unique<keypress>(std::move(l), xdo);
+                        valid = true;
+                      }
+                    }
                   }
                 }
 

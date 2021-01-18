@@ -1,4 +1,4 @@
-VERSION = 1.1
+VERSION = 1.2
 
 CXX = g++ $(CXXSTD)
 INSTALL = install
@@ -9,6 +9,7 @@ MV_F = mv -f
 RM_F = rm -f
 RPMBUILD = rpmbuild
 PKG_CONFIG = pkg-config
+INKSCAPE = inkscape
 
 CXXSTD = -std=gnu++20
 CXXFLAGS = $(OPTS) $(DEBUG) $(CXXFLAGS-$@) $(WARN)
@@ -31,7 +32,8 @@ IFACEPKGS =
 DEPPKGS = libconfig++ keylightpp streamdeckpp libcrypto
 ALLPKGS = $(IFACEPKGS) $(DEPPKGS)
 
-SVGS = brightness+.svg brightness-.svg color+.svg color-.svg preview1.svg preview2.svg transition.svg
+SVGS = brightness+.svg brightness-.svg color+.svg color-.svg preview1.svg preview2.svg transition.svg \
+       switch1.svg switch2.svg
 PNGS = $(SVGS:.svg=.png) bulb_on.png bulb_off.png bluejeans.png
 
 DEFINES-main.o = -DSHAREDIR=\"$(sharedir)\"
@@ -42,11 +44,14 @@ all: streamdeckd
 streamdeckd: main.o
 	$(CXX) $(LDFLAGS) -o $@ $^ $(LIBS)
 
+$(SVGS:.svg=.png): %.png: %.svg
+	$(INKSCAPE) --export-type=png -o $@ $^
+
 streamdeckd.spec streamdeckd.desktop: %: %.in Makefile
 	$(SED) 's/@VERSION@/$(VERSION)/' $< > $@-tmp
 	$(MV_F) $@-tmp $@
 
-install: streamdeckd streamdeckd.desktop
+install: streamdeckd streamdeckd.desktop $(PNGS)
 	$(INSTALL) -D -c -m 755 streamdeckd $(DESTDIR)$(bindir)/streamdeckd
 	for p in $(PNGS); do \
 	  $(INSTALL) -D -c -m 644 $$p $(DESTDIR)$(sharedir)/$$p; \
@@ -54,7 +59,7 @@ install: streamdeckd streamdeckd.desktop
 	$(INSTALL) -D -c -m 644 streamdeckd.desktop $(DESTDIR)$(prefix)/share/applications/streamdeckd.desktop
 	$(INSTALL) -D -c -m 644 streamdeckd.svg $(DESTDIR)$(prefix)/share/icons/hicolor/scalable/apps/streamdeckd.svg
 
-dist: streamdeckd.spec streamdeckd.desktop
+dist: streamdeckd.spec streamdeckd.desktop $(PNGS)
 	$(LN_FS) . streamdeckd-$(VERSION)
 	$(TAR) achf streamdeckd-$(VERSION).tar.xz streamdeckd-$(VERSION)/{Makefile,main.cc,README.md,streamdeckd.spec,streamdeckd.spec.in,streamdeckd.desktop.in,*.svg,*.png}
 	$(RM_F) streamdeckd-$(VERSION)

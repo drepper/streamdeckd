@@ -28,6 +28,11 @@ which is using the syntax of libconfig.  It could look as follows:
         sequence: "alt+ctrl+shift+1"
         icon: "preview1.png";
       };
+      r3c1: {
+        type: "key";
+        sequence: ("alt+ctrl+shift+1", "alt+ctrl+shift+quoteleft")
+        icon: "switch1.png";
+      };
 
       r4c1: {
       	type: "execute";
@@ -61,8 +66,10 @@ entry specifies what happens when the key is pressed.  Currently three types are
 * `key` which is used to send the key sequence specified in the dictionary item `sequence` to the
   current window.  This by itself can be useful, a shortcut sequence for an editor or game can
   be issued.  Some programs listen for key sequences globally and if the specified key sequence
-  is obscure enough this causes no problems.  In the example above the key `1` is sent with the
-  modifiers Alt, Ctrl, and Shift.  Note the string notation to specify this.
+  is obscure enough this causes no problems.  In the example above pressing the first button in
+  the second row send the key `1` with the modifiers Alt, Ctrl, and Shift.  Note the string notation
+  to specify this.  The next entry is an example of how a list of strings can be used to specify
+  more than one key to be sent.
 
 Notes
 -----
