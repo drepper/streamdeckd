@@ -1,4 +1,4 @@
-VERSION = 1.2
+VERSION = 1.3
 
 CXX = g++ $(CXXSTD)
 INSTALL = install
@@ -29,19 +29,21 @@ bindir = $(prefix)/bin
 sharedir = $(prefix)/share/streamdeckd-$(VERSION)
 
 IFACEPKGS = 
-DEPPKGS = libconfig++ keylightpp streamdeckpp libcrypto
+DEPPKGS = libconfig++ keylightpp streamdeckpp libcrypto jsoncpp uuid libwebsockets
 ALLPKGS = $(IFACEPKGS) $(DEPPKGS)
 
 SVGS = brightness+.svg brightness-.svg color+.svg color-.svg preview1.svg preview2.svg transition.svg \
-       switch1.svg switch2.svg
+       switch1.svg switch2.svg $(wildcard scene[1-8]_live.svg) $(wildcard scene[1-8]_live_off.svg) \
+       $(wildcard scene[1-8]_preview.svg) $(wildcard scene[1-8]_preview_off.svg) cut.svg auto.svg
 PNGS = $(SVGS:.svg=.png) bulb_on.png bulb_off.png bluejeans.png
 
 DEFINES-main.o = -DSHAREDIR=\"$(sharedir)\"
+DEFINES-obs.o = -DSHAREDIR=\"$(sharedir)\"
 
 
 all: streamdeckd
 
-streamdeckd: main.o
+streamdeckd: main.o obs.o obsws.o
 	$(CXX) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 $(SVGS:.svg=.png): %.png: %.svg
@@ -50,6 +52,10 @@ $(SVGS:.svg=.png): %.png: %.svg
 streamdeckd.spec streamdeckd.desktop: %: %.in Makefile
 	$(SED) 's/@VERSION@/$(VERSION)/' $< > $@-tmp
 	$(MV_F) $@-tmp $@
+
+main.o: obs.hh
+obs.o: obs.hh obsws.hh
+obsws.o: obsws.hh
 
 install: streamdeckd streamdeckd.desktop $(PNGS)
 	$(INSTALL) -D -c -m 755 streamdeckd $(DESTDIR)$(bindir)/streamdeckd
@@ -61,7 +67,7 @@ install: streamdeckd streamdeckd.desktop $(PNGS)
 
 dist: streamdeckd.spec streamdeckd.desktop $(PNGS)
 	$(LN_FS) . streamdeckd-$(VERSION)
-	$(TAR) achf streamdeckd-$(VERSION).tar.xz streamdeckd-$(VERSION)/{Makefile,main.cc,README.md,streamdeckd.spec,streamdeckd.spec.in,streamdeckd.desktop.in,*.svg,*.png}
+	$(TAR) achf streamdeckd-$(VERSION).tar.xz streamdeckd-$(VERSION)/{Makefile,main.cc,obs.cc,obsws.cc,README.md,streamdeckd.spec,streamdeckd.spec.in,streamdeckd.desktop.in,*.svg,*.png}
 	$(RM_F) streamdeckd-$(VERSION)
 
 srpm: dist
