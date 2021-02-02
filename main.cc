@@ -24,6 +24,9 @@ using namespace std::string_literals;
 
 namespace {
 
+  struct deck_config;
+
+
   struct action {
     action(unsigned k) : key(k) { }
     virtual ~action() { }
@@ -47,16 +50,53 @@ namespace {
   struct keylight_toggle final : public action {
     using base_type = action;
 
-    keylight_toggle(unsigned k, bool has_serial, std::string& serial, keylightpp::device_list_type& keylights_) : base_type(k), serial(has_serial ? serial : ""), keylights(keylights_) { }
-
-    void call() override {
+    keylight_toggle(unsigned k, bool has_serial, std::string& serial, streamdeck::device_type& deck_, keylightpp::device_list_type& keylights_) : base_type(k), serial(has_serial ? serial : ""), deck(deck_), keylights(keylights_) {
+      nkeylights = 0;
       for (auto& d : keylights)
         if (serial == "" || serial == d.serial)
+          ++nkeylights;
+    }
+
+    void call() override {
+      bool any = false;
+      for (auto& d : keylights)
+        if (serial == "" || serial == d.serial) {
           d.toggle();
+          any = true;
+        }
+      if (any && nkeylights == 1)
+        update_icon();
+    }
+
+    void show_icon(const libconfig::Setting& setting, streamdeck::device_type* d) override {
+      if (setting.lookupValue("icon_on", icon1name)) {
+        if (auto path = std::filesystem::path(icon1name); path.is_relative()) {
+          path = std::filesystem::path(SHAREDIR) / path;
+          icon1name = path.string();
+        }
+        if (nkeylights == 1 && setting.lookupValue("icon_off", icon2name)) {
+          if (auto path = std::filesystem::path(icon2name); path.is_relative()) {
+            path = std::filesystem::path(SHAREDIR) / path;
+            icon2name = path.string();
+          }
+        } else
+          icon2name = icon1name;
+
+        update_icon();
+      }
     }
   private:
     const std::string serial;
+    streamdeck::device_type& deck;
     keylightpp::device_list_type& keylights;
+    unsigned nkeylights;
+
+    std::string icon1name;
+    std::string icon2name;
+
+    void update_icon() {
+      deck.set_key_image(key, nkeylights > 1 || ! keylights.front().state() ? icon1name.c_str() : icon2name.c_str());
+    }
   };
 
 
@@ -213,7 +253,7 @@ namespace {
                   }
 
                   if (std::string(key["function"]) == "on/off") {
-                    actions[k] = std::make_unique<keylight_toggle>(k, has_serial, serial, keylights);
+                    actions[k] = std::make_unique<keylight_toggle>(k, has_serial, serial, *d, keylights);
                     valid = true;
                   } else if (std::string(key["function"]) == "brightness+") {
                     actions[k] = std::make_unique<keylight_brightness>(k, has_serial, serial, keylights, 5);
