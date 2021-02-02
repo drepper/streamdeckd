@@ -32,6 +32,8 @@ IFACEPKGS =
 DEPPKGS = libconfig++ keylightpp streamdeckpp libcrypto jsoncpp uuid libwebsockets
 ALLPKGS = $(IFACEPKGS) $(DEPPKGS)
 
+OBJS = main.o obs.o obsws.o
+
 SVGS = brightness+.svg brightness-.svg color+.svg color-.svg preview1.svg preview2.svg transition.svg \
        switch1.svg switch2.svg $(wildcard scene[1-8]_live.svg) $(wildcard scene[1-8]_live_off.svg) \
        $(wildcard scene[1-8]_preview.svg) $(wildcard scene[1-8]_preview_off.svg) cut.svg auto.svg
@@ -43,7 +45,7 @@ DEFINES-obs.o = -DSHAREDIR=\"$(sharedir)\"
 
 all: streamdeckd
 
-streamdeckd: main.o obs.o obsws.o
+streamdeckd: $(OBJS)
 	$(CXX) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 $(SVGS:.svg=.png): %.png: %.svg
@@ -76,7 +78,7 @@ rpm: dist
 	$(RPMBUILD) -tb streamdeckd-$(VERSION).tar.xz
 
 clean:
-	$(RM_F) streamdeck main.o streamdeckd.spec streamdeckd.desktop
+	$(RM_F) streamdeck $(OBJS) streamdeckd.spec streamdeckd.desktop
 
 .PHONY: all install dist srpm rpm clean
 .ONESHELL:
