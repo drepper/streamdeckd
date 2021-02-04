@@ -101,6 +101,7 @@ namespace {
     connecting,
     connected,
     running,
+    writable,
     terminated
   };
 
@@ -117,16 +118,31 @@ namespace {
 
 
   struct client {
-    client(obsws::event_cb_type event_cb_, const char* server_, unsigned port_, const char* log, int ssl_connection_, const char* ssl_ca_path, const uint32_t* backoff_ms, uint16_t nbackoff_ms, uint16_t secs_since_valid_ping, uint16_t secs_since_valid_hangup, uint8_t jitter_percent);
+    client(obsws::event_cb_type event_cb_, obsws::update_cb_type update_cb_, const char* server_, unsigned port_, const char* log, int ssl_connection_, const char* ssl_ca_path, const uint32_t* backoff_ms, uint16_t nbackoff_ms, uint16_t secs_since_valid_ping, uint16_t secs_since_valid_hangup, uint8_t jitter_percent);
     ~client() { status = ws_status::terminated; atomic_notify_all(status); thread.join(); }
 
-    static auto allocate(obsws::event_cb_type event_cb, const char* server, unsigned port, const char* log, int ssl_connection = LCCSCF_USE_SSL | LCCSCF_ALLOW_INSECURE | LCCSCF_ALLOW_EXPIRED | LCCSCF_ALLOW_SELFSIGNED, const char* ssl_ca_path = nullptr, const uint32_t* backoff_ms = default_backoff_ms, uint16_t nbackoff_ms = LWS_ARRAY_SIZE(default_backoff_ms), uint16_t secs_since_valid_ping = 3, uint16_t secs_since_valid_hangup = 10, uint8_t jitter_percent = 20)
-    { return std::make_unique<client>(event_cb, server, port, log, ssl_connection, ssl_ca_path, backoff_ms, nbackoff_ms, secs_since_valid_ping, secs_since_valid_hangup, jitter_percent); }
+    static auto allocate(obsws::event_cb_type event_cb, obsws::update_cb_type update_cb_, const char* server, unsigned port, const char* log, int ssl_connection = LCCSCF_USE_SSL | LCCSCF_ALLOW_INSECURE | LCCSCF_ALLOW_EXPIRED | LCCSCF_ALLOW_SELFSIGNED, const char* ssl_ca_path = nullptr, const uint32_t* backoff_ms = init_backoff_ms, uint16_t nbackoff_ms = LWS_ARRAY_SIZE(init_backoff_ms), uint16_t secs_since_valid_ping = 3, uint16_t secs_since_valid_hangup = 10, uint8_t jitter_percent = 20)
+    { return std::make_unique<client>(event_cb, update_cb_, server, port, log, ssl_connection, ssl_ca_path, backoff_ms, nbackoff_ms, secs_since_valid_ping, secs_since_valid_hangup, jitter_percent); }
 
     void run();
     bool ensure_running() {
       bool started = false;
-      for (auto s = status.load(); s != ws_status::running; s = status.load()) {
+      for (auto s = status.load(); s != ws_status::running && s != ws_status::writable; s = status.load()) {
+        if (s == ws_status::terminated)
+          return false;
+        if (s == ws_status::idle) {
+          if (started)
+            return false;
+          started = true;
+          connect();
+        }
+        atomic_wait(status, s);
+      }
+      return true;
+    }
+    bool ensure_mark_writable() {
+      bool started = false;
+      for (auto s = status.load(); s != ws_status::writable; s = status.load()) {
         if (s == ws_status::terminated)
           return false;
         if (s == ws_status::idle) {
@@ -173,14 +189,15 @@ namespace {
 
   protected:
     static const char protocol_name[];
-    static const uint32_t default_backoff_ms[5];
+    static const uint32_t init_backoff_ms[3];
+    static const uint32_t subsequent_backoff_ms[4];
     const lws_protocols protocols[2] = {
       { "obsws", callback, 0, 0 },
       { nullptr, nullptr, 0, 0}
     };
 
     std::unique_ptr<lws_context, void(*)(lws_context*)> context{ nullptr, nullptr };
-    const lws_retry_bo_t retry;
+    lws_retry_bo_t retry;
     const char* remote_protocol;
     const int ssl_connection;
 
@@ -198,6 +215,7 @@ namespace {
 
     std::thread thread;
     obsws::event_cb_type event_cb;
+    obsws::update_cb_type update_cb;
 
     // Memory used to partial results.
     std::string chunks;
@@ -214,6 +232,7 @@ namespace {
 
   private:
     void connect();
+    void exhausted();
 
     std::list<request> outstanding;
     std::mutex lock;
@@ -221,14 +240,17 @@ namespace {
 
 
   const char client::protocol_name[] = "obsws";
-  // const uint32_t client::default_backoff_ms[5] = { 1000, 2000, 3000, 4000, 5000 };
-  const uint32_t client::default_backoff_ms[5] = { 250, 500, 750, 1000 };
+
+  const uint32_t client::init_backoff_ms[3] = { 250, 500, 750 }; // XYZ Last number should be 2 minutes or so...
+  static constexpr uint32_t connect_timeout = 10000;  // XYZ Number should be 2 minutes or so...
+  const uint32_t client::subsequent_backoff_ms[4] = { connect_timeout, 250, 500, 750 };
 
 
-  client::client(obsws::event_cb_type event_cb_, const char* server_, unsigned port_, const char* log, int ssl_connection_, const char* ssl_ca_path, const uint32_t* backoff_ms, uint16_t nbackoff_ms, uint16_t secs_since_valid_ping, uint16_t secs_since_valid_hangup, uint8_t jitter_percent)
+  client::client(obsws::event_cb_type event_cb_, obsws::update_cb_type update_cb_, const char* server_, unsigned port_, const char* log, int ssl_connection_, const char* ssl_ca_path, const uint32_t* backoff_ms, uint16_t nbackoff_ms, uint16_t secs_since_valid_ping, uint16_t secs_since_valid_hangup, uint8_t jitter_percent)
   : retry{ .retry_ms_table = backoff_ms, .retry_ms_table_count = nbackoff_ms, .conceal_count = nbackoff_ms, .secs_since_valid_ping = secs_since_valid_ping, .secs_since_valid_hangup = secs_since_valid_hangup, .jitter_percent = jitter_percent },
-    ssl_connection(ssl_connection_), server(server_), port(port_), log_events(strstr(log, "events") != nullptr), wrap{ this }, status(ws_status::connecting), thread(&client::run, this), event_cb(event_cb_)
+    ssl_connection(ssl_connection_), server(server_), port(port_), log_events(strstr(log, "events") != nullptr), wrap{ this }, status(ws_status::connecting), event_cb(event_cb_), update_cb(update_cb_)
   {
+    std::cout << "client::client\n";
     lws_context_creation_info info;
     memset(&info, '\0', sizeof info);
     info.options = ssl_connection ? LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT : 0;
@@ -243,8 +265,37 @@ namespace {
     if (context == nullptr)
       throw std::runtime_error("cannot create lws context");
 
+    std::cout << "created context\n";
     /* schedule the first client connection attempt to happen immediately */
     lws_sul_schedule(context.get(), 0, &wrap.sul, client::connect, 1);
+
+    std::cout << "client::client scheduled\n";
+    thread = std::thread(&client::run, this);
+    std::cout << "client::client started thread\n";
+  }
+
+
+  void client::exhausted()
+  {
+    lwsl_info("%s: connection attempts exhausted\n", __func__);
+    status = ws_status::idle;
+    atomic_notify_all(status);
+    update_cb(false);
+    while (! outstanding.empty()) {
+      outstanding.front().fail = true;
+      outstanding.front().l.count_down();
+      outstanding.pop_front();
+    }
+
+    // Change to the table with a large initial timeout.
+    retry_count = 0;
+    retry.retry_ms_table = subsequent_backoff_ms;
+    retry.retry_ms_table_count = LWS_ARRAY_SIZE(subsequent_backoff_ms);
+    retry.conceal_count = LWS_ARRAY_SIZE(subsequent_backoff_ms);
+    if (lws_retry_sul_schedule(context.get(), 0, &wrap.sul, &retry, client::connect, &retry_count)) {
+      lwsl_err("%s: rescheduling after connection timeout failed", __func__);
+    }
+    else std::cout << "reschedule in exhausted worked\n";
   }
 
 
@@ -257,29 +308,42 @@ namespace {
     info.port = port;
     info.address = server;
     info.path = "/";
-    info.host = server;
-    info.origin = server;
+    info.host = lws_canonical_hostname(context.get());
     info.ssl_connection = ssl_connection;
-    info.protocol =  "obsws";             // Does not matter.
-    info.local_protocol_name = "obsws";   // Does not matter.
+    info.protocol = protocols[0].name;
+    // info.local_protocol_name = "obsws";   // Does not matter.
     info.pwsi = &wsi;
     info.retry_and_idle_policy = &retry;
     info.userdata = this;
 
-    if (lws_client_connect_via_info(&info)) {
-      status = ws_status::connecting;
-      atomic_notify_all(status);
-    } else {
+    status = ws_status::connecting;
+    // atomic_notify_all(status);
+
+    if (! lws_client_connect_via_info(&info)) {
       lwsl_user("%s: retry connecting\n", __func__);
       if (lws_retry_sul_schedule(context.get(), 0, &wrap.sul, &retry, client::connect, &retry_count)) {
-        lwsl_err("%s: connection attempts exhausted\n", __func__);
+#if 0
+        lwsl_info("%s: connection attempts exhausted\n", __func__);
         status = ws_status::idle;
         atomic_notify_all(status);
+        update_cb(false);
         while (! outstanding.empty()) {
           outstanding.front().fail = true;
           outstanding.front().l.count_down();
           outstanding.pop_front();
         }
+
+        // Change to the table with a large initial timeout.
+        retry_count = 0;
+        retry.retry_ms_table = subsequent_backoff_ms;
+        retry.retry_ms_table_count = LWS_ARRAY_SIZE(subsequent_backoff_ms);
+        retry.conceal_count = LWS_ARRAY_SIZE(subsequent_backoff_ms);
+        if (lws_retry_sul_schedule(context.get(), 0, &wrap.sul, &retry, client::connect, &retry_count)) {
+          lwsl_err("%s: rescheduling after connection timeout failed", __func__);
+        }
+#else
+        exhausted();
+#endif
       }
     }
 
@@ -311,10 +375,12 @@ namespace {
     switch (reason) {
     case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
       lwsl_err("CLIENT_CONNECTION_ERROR: %s\n", in ? (char *)in : "(null)");
+      std::cout << "going to retry\n";
       goto do_retry;
-      break;
 
     case LWS_CALLBACK_CLIENT_ESTABLISHED:
+      std::cout << "connected!\n";
+      update_cb(true);
       status = ws_status::connected;
       atomic_notify_all(status);
       lwsl_user("%s: established\n", __func__);
@@ -322,8 +388,14 @@ namespace {
 
     case LWS_CALLBACK_CLIENT_CLOSED:
       lwsl_user("%s: closed\n", __func__);
+      update_cb(false);
       status = ws_status::connecting;
       goto do_retry;
+
+    case LWS_CALLBACK_CLIENT_WRITEABLE:
+      status = ws_status::writable;
+      atomic_notify_all(status);
+      break;
 
     case LWS_CALLBACK_CLIENT_RECEIVE:
       if (log_events)
@@ -368,9 +440,14 @@ namespace {
   do_retry:
     status = ws_status::connecting;
     if (lws_retry_sul_schedule_retry_wsi(wsi, &wrap.sul, client::connect, &retry_count)) {
+#if 0
       lwsl_err("%s: connection attempts exhausted\n", __func__);
+      update_cb(false);
       status = ws_status::idle;
       atomic_notify_all(status);
+#else
+      exhausted();
+#endif
     }
 
     return 0;
@@ -379,7 +456,7 @@ namespace {
 
   int client::send(const std::string& in)
   {
-    if (! ensure_running())
+    if (! ensure_mark_writable())
       return -1;
 
     std::string s = std::string(LWS_SEND_BUFFER_PRE_PADDING, '\0') + in + std::string(LWS_SEND_BUFFER_POST_PADDING, '\0');
@@ -404,6 +481,7 @@ namespace {
 
   // Configuration.
   obsws::event_cb_type event_cb = nullptr;
+  obsws::update_cb_type update_cb = nullptr;
   std::string server("localhost");
   int port = 4444;
   std::string log("");
@@ -415,9 +493,10 @@ namespace {
   bool setup()
   {
     if (! wsobj) {
-      wsobj = client::allocate(event_cb, server.c_str(), port, log.c_str(), 0);
+      std::cout << "starting obsws thread\n";
+      wsobj = client::allocate(event_cb, update_cb, server.c_str(), port, log.c_str(), 0);
 
-      // std::cout << "started thread\n";
+      std::cout << "started obsws thread\n";
     }
     return bool(wsobj);
   }
@@ -427,9 +506,10 @@ namespace {
 
 namespace obsws {
 
-  void config(obsws::event_cb_type event_cb_, const char* server_, int port_, const char* log_)
+  void config(obsws::event_cb_type event_cb_, obsws::update_cb_type update_cb_, const char* server_, int port_, const char* log_)
   {
     event_cb = event_cb_;
+    update_cb = update_cb_;
     server = server_;
     port = port_;
     log = log_;

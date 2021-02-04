@@ -9,9 +9,10 @@
 namespace obsws {
 
   using event_cb_type = std::function<void(const Json::Value&)>;
+  using update_cb_type = std::function<void(bool)>;
 
 
-  void config(event_cb_type event_cb = nullptr, const char* server = "localhost", int port = 4444, const char* log = "");
+  void config(event_cb_type event_cb = nullptr, update_cb_type update_cb = nullptr, const char* server = "localhost", int port = 4444, const char* log = "");
 
 
   bool emit(const Json::Value& req);
