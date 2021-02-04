@@ -73,11 +73,22 @@ namespace obs {
       i->handle_next_transition_change.clear();
       d["request-type"] = "TransitionToProgram";
       d["with-transition"]["name"] = "Cut";
-      obsws::call(d);
+      obsws::emit(d);
       break;
     case keyop_type::auto_rate:
       d["request-type"] = "TransitionToProgram";
       d["with-transition"]["name"] = i->get_current_transition();
+      obsws::emit(d);
+      break;
+    case keyop_type::ftb:
+      i->handle_next_transition_change.clear();
+      d["request-type"] = "SetPreviewScene";
+      d["scene-name"] = "Black";
+      obsws::emit(d);
+      d.clear();
+      d["request-type"] = "TransitionToProgram";
+      d["with-transition"]["name"] = "Fade";
+      d["with-transition"]["duration"] = 1000;
       obsws::emit(d);
       break;
     default:
@@ -204,17 +215,27 @@ namespace obs {
     d["request-type"] = "GetSceneList";
     auto scenelist = obsws::call(d);
     if (scenelist.isMember("current-scene")) {
+      bool has_Black = false;
       current_scene = scenelist["current-scene"].asString();
       auto& escenes = scenelist["scenes"];
       for (auto& s : escenes) {
         auto name = s["name"].asString();
+        has_Black |= name == "Black";
         scenes.emplace(std::piecewise_construct, std::forward_as_tuple(name), std::forward_as_tuple(1 + scenes.size(), name)); 
+      }
+
+      if (! has_Black) {
+        d["request-type"] = "CreateScene";
+        d["sceneName"] = "Black";
+        obsws::emit(d);
       }
     }
 
+    d.clear();
     d["request-type"] = "GetCurrentTransition";
     current_transition = obsws::call(d)["name"].asString();
 
+    d.clear();
     d["request-type"] = "GetPreviewScene";
     auto previewscene = obsws::call(d);
     if (previewscene.isMember("name"))
@@ -253,6 +274,8 @@ namespace obs {
       return &cut_buttons.emplace_back(0, d, this, row, column, icon1, icon1, keyop_type::cut);
     } else if (function == "scene-auto") {
       return &auto_buttons.emplace_back(0, d, this, row, column, icon1, icon1, keyop_type::auto_rate);
+    } else if (function == "scene-ftb") {
+      return &auto_buttons.emplace_back(0, d, this, row, column, icon1, icon1, keyop_type::ftb);
     }
 
     return nullptr;

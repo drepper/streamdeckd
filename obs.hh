@@ -26,6 +26,7 @@ namespace obs {
     preview_scene,
     cut,
     auto_rate,
+    ftb,
   };
 
   struct scene {

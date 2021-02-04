@@ -34,7 +34,7 @@ ALLPKGS = $(IFACEPKGS) $(DEPPKGS)
 
 OBJS = main.o obs.o obsws.o
 
-SVGS = brightness+.svg brightness-.svg color+.svg color-.svg \
+SVGS = brightness+.svg brightness-.svg color+.svg color-.svg ftb.svg \
        $(wildcard scene[1-8]_live.svg) $(wildcard scene[1-8]_live_off.svg) \
        $(wildcard scene[1-8]_preview.svg) $(wildcard scene[1-8]_preview_off.svg) cut.svg auto.svg
 PNGS = $(SVGS:.svg=.png) bulb_on.png bulb_off.png bluejeans.png
