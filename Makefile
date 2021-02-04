@@ -34,8 +34,8 @@ ALLPKGS = $(IFACEPKGS) $(DEPPKGS)
 
 OBJS = main.o obs.o obsws.o
 
-SVGS = brightness+.svg brightness-.svg color+.svg color-.svg preview1.svg preview2.svg transition.svg \
-       switch1.svg switch2.svg $(wildcard scene[1-8]_live.svg) $(wildcard scene[1-8]_live_off.svg) \
+SVGS = brightness+.svg brightness-.svg color+.svg color-.svg \
+       $(wildcard scene[1-8]_live.svg) $(wildcard scene[1-8]_live_off.svg) \
        $(wildcard scene[1-8]_preview.svg) $(wildcard scene[1-8]_preview_off.svg) cut.svg auto.svg
 PNGS = $(SVGS:.svg=.png) bulb_on.png bulb_off.png bluejeans.png
 
@@ -69,7 +69,7 @@ install: streamdeckd streamdeckd.desktop $(PNGS)
 
 dist: streamdeckd.spec streamdeckd.desktop $(PNGS)
 	$(LN_FS) . streamdeckd-$(VERSION)
-	$(TAR) achf streamdeckd-$(VERSION).tar.xz streamdeckd-$(VERSION)/{Makefile,main.cc,obs.cc,obsws.cc,README.md,streamdeckd.spec,streamdeckd.spec.in,streamdeckd.desktop.in,*.svg,*.png}
+	$(TAR) achf streamdeckd-$(VERSION).tar.xz streamdeckd-$(VERSION)/{Makefile,main.cc,obs.cc,obs.hh,obsws.cc,obsws.hh,README.md,streamdeckd.spec,streamdeckd.spec.in,streamdeckd.desktop.in,*.svg,*.png}
 	$(RM_F) streamdeckd-$(VERSION)
 
 srpm: dist
@@ -78,7 +78,7 @@ rpm: dist
 	$(RPMBUILD) -tb streamdeckd-$(VERSION).tar.xz
 
 clean:
-	$(RM_F) streamdeck $(OBJS) streamdeckd.spec streamdeckd.desktop
+	$(RM_F) streamdeckd $(OBJS) streamdeckd.spec streamdeckd.desktop
 
 .PHONY: all install dist srpm rpm clean
 .ONESHELL:
