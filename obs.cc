@@ -3,6 +3,9 @@
 #include <cassert>
 #include <filesystem>
 
+#include <openssl/evp.h>
+#include <openssl/sha.h>
+
 #include "obsws.hh"
 
 
@@ -12,6 +15,7 @@ namespace obs {
 
     std::string server("localhost");
     int port = 4444;
+    std::string password("");
     std::string log("");
 
   } // anonymous namespace;
@@ -53,6 +57,7 @@ namespace obs {
 
     Json::Value d;
     std::string old;
+    int val;
 
     switch(keyop) {
     case keyop_type::live_scene:
@@ -78,10 +83,14 @@ namespace obs {
     case keyop_type::auto_rate:
       d["request-type"] = "TransitionToProgram";
       d["with-transition"]["name"] = i->get_current_transition();
+      d["with-transition"]["duration"] = i->get_current_duration();
       obsws::emit(d);
       break;
     case keyop_type::ftb:
+      d["request-type"] = "GetTransitionDuration";
+      val = obsws::call(d)["transition-duration"].asInt();
       i->handle_next_transition_change.clear();
+      d.clear();
       d["request-type"] = "SetPreviewScene";
       d["scene-name"] = "Black";
       obsws::emit(d);
@@ -90,6 +99,12 @@ namespace obs {
       d["with-transition"]["name"] = "Fade";
       d["with-transition"]["duration"] = 1000;
       obsws::emit(d);
+      if (val != 1000) {
+        d.clear();
+        d["request-type"] = "SetTransitionDuration";
+        d["duration"] = val;
+        obsws::emit(d);
+      }
       break;
     default:
       break;
@@ -103,6 +118,8 @@ namespace obs {
       server = std::string(config["server"]);
     if (config.exists("port"))
       port = int(config["port"]);
+    if (config.exists("password"))
+      password = std::string(config["password"]);
     if (config.exists("log")) {
       log = std::string(config["log"]);
 
@@ -210,11 +227,50 @@ namespace obs {
 
   void info::get_session_data()
   {
-    scenes.clear();
     Json::Value d;
+    d["request-type"] = "GetVersion";
+    auto resp = obsws::call(d);
+    if (! resp.isMember("status") || resp["status"] != "ok" || strverscmp("4.9", resp["obs-websocket-version"].asCString()) > 0)
+      return;
+
+    d["request-type"] = "GetAuthRequired";
+    resp = obsws::call(d);
+    if (! resp.isMember("status") || resp["status"] != "ok")
+      return;
+    if (resp["authRequired"].asBool()) {
+      auto salt = resp["salt"].asCString();
+      SHA256_CTX shactx;
+      SHA256_Init(&shactx);
+      SHA256_Update(&shactx, password.c_str(), password.size());
+      SHA256_Update(&shactx, salt, strlen(salt));
+      unsigned char hashbuf[SHA256_DIGEST_LENGTH];
+      SHA256_Final(hashbuf, &shactx);
+
+      unsigned char enchashbuf[(sizeof(hashbuf) + 2) / 3 * 4 + 1];
+      auto enclen = EVP_EncodeBlock(enchashbuf, hashbuf, SHA256_DIGEST_LENGTH);
+
+      auto challenge = resp["challenge"].asCString();
+      SHA256_Init(&shactx);
+      SHA256_Update(&shactx, enchashbuf, enclen);
+      SHA256_Update(&shactx, challenge, strlen(challenge));
+      SHA256_Final(hashbuf, &shactx);
+
+      enclen = EVP_EncodeBlock(enchashbuf, hashbuf, SHA256_DIGEST_LENGTH);
+
+      d.clear();
+      d["request-type"] = "Authenticate";
+      d["auth"] = (char*) enchashbuf;
+      obsws::emit(d);
+    }
+
+    d.clear();
+    d["request-type"] = "EnableStudioMode";
+    obsws::emit(d);
+
+    scenes.clear();
     d["request-type"] = "GetSceneList";
     auto scenelist = obsws::call(d);
-    if (scenelist.isMember("current-scene")) {
+    if (scenelist.isMember("status") && scenelist["status"] == "ok") {
       bool has_Black = false;
       current_scene = scenelist["current-scene"].asString();
       auto& escenes = scenelist["scenes"];
@@ -225,20 +281,37 @@ namespace obs {
       }
 
       if (! has_Black) {
+        d.clear();
         d["request-type"] = "CreateScene";
         d["sceneName"] = "Black";
         obsws::emit(d);
       }
     }
 
+    transitions.clear();
+    d.clear();
+    d["request-type"] = "GetTransitionList";
+    auto transitionlist = obsws::call(d);
+    if (transitionlist.isMember("status") && transitionlist["status"] == "ok")
+      for (auto& t : transitionlist["transitions"])
+        if (auto name = t["name"].asString(); name != "Cut")
+          transitions.emplace(std::piecewise_construct, std::forward_as_tuple(name), std::forward_as_tuple(1 + transitions.size(), name));
+
     d.clear();
     d["request-type"] = "GetCurrentTransition";
-    current_transition = obsws::call(d)["name"].asString();
+    resp = obsws::call(d);
+    if (resp.isMember("status") && resp["status"] == "ok") {
+      current_transition = resp["name"].asString();
+      if (resp.isMember("duration"))
+        current_duration_ms = resp["duration"].asInt();
+      else
+        current_duration_ms = -1;
+    }
 
     d.clear();
     d["request-type"] = "GetPreviewScene";
     auto previewscene = obsws::call(d);
-    if (previewscene.isMember("name"))
+    if (previewscene.isMember("status") && previewscene["status"] == "ok")
       current_preview = previewscene["name"].asString();
   }
 

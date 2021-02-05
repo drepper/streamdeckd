@@ -322,28 +322,7 @@ namespace {
     if (! lws_client_connect_via_info(&info)) {
       lwsl_user("%s: retry connecting\n", __func__);
       if (lws_retry_sul_schedule(context.get(), 0, &wrap.sul, &retry, client::connect, &retry_count)) {
-#if 0
-        lwsl_info("%s: connection attempts exhausted\n", __func__);
-        status = ws_status::idle;
-        atomic_notify_all(status);
-        update_cb(false);
-        while (! outstanding.empty()) {
-          outstanding.front().fail = true;
-          outstanding.front().l.count_down();
-          outstanding.pop_front();
-        }
-
-        // Change to the table with a large initial timeout.
-        retry_count = 0;
-        retry.retry_ms_table = subsequent_backoff_ms;
-        retry.retry_ms_table_count = LWS_ARRAY_SIZE(subsequent_backoff_ms);
-        retry.conceal_count = LWS_ARRAY_SIZE(subsequent_backoff_ms);
-        if (lws_retry_sul_schedule(context.get(), 0, &wrap.sul, &retry, client::connect, &retry_count)) {
-          lwsl_err("%s: rescheduling after connection timeout failed", __func__);
-        }
-#else
         exhausted();
-#endif
       }
     }
 
@@ -439,16 +418,8 @@ namespace {
 
   do_retry:
     status = ws_status::connecting;
-    if (lws_retry_sul_schedule_retry_wsi(wsi, &wrap.sul, client::connect, &retry_count)) {
-#if 0
-      lwsl_err("%s: connection attempts exhausted\n", __func__);
-      update_cb(false);
-      status = ws_status::idle;
-      atomic_notify_all(status);
-#else
+    if (lws_retry_sul_schedule_retry_wsi(wsi, &wrap.sul, client::connect, &retry_count))
       exhausted();
-#endif
-    }
 
     return 0;
   }

@@ -29,9 +29,18 @@ namespace obs {
     ftb,
   };
 
+
   struct scene {
     scene() = default;
     scene(unsigned nr_, const std::string& name_) : nr(nr_), name(name_) { }
+    unsigned nr = 0;
+    std::string name;
+  };
+
+
+  struct transition {
+    transition() = default;
+    transition(unsigned nr_, const std::string& name_) : nr(nr_), name(name_) { }
     unsigned nr = 0;
     std::string name;
   };
@@ -78,6 +87,7 @@ namespace obs {
     unsigned scene_count() const { return scenes.size(); }
     scene& get_current_scene();
     scene& get_current_preview();
+    int get_current_duration() const { return current_duration_ms; }
     scene& get_scene(const std::string& s);
     scene& get_preview(const std::string& s);
     const std::string& get_current_transition() const { return current_transition; }
@@ -102,7 +112,9 @@ namespace obs {
     std::unordered_map<std::string,obs::scene> scenes;
     std::string current_scene;
     std::string current_preview;
+    std::unordered_map<std::string,obs::transition> transitions;
     std::string current_transition;
+    int current_duration_ms;
     std::atomic_flag handle_next_transition_change = true;
 
     std::unordered_multimap<unsigned,button> scene_live_buttons;
