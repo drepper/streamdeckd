@@ -255,7 +255,7 @@ namespace obs {
       SHA256_Update(&shactx, challenge, strlen(challenge));
       SHA256_Final(hashbuf, &shactx);
 
-      enclen = EVP_EncodeBlock(enchashbuf, hashbuf, SHA256_DIGEST_LENGTH);
+      EVP_EncodeBlock(enchashbuf, hashbuf, SHA256_DIGEST_LENGTH);
 
       d.clear();
       d["request-type"] = "Authenticate";
@@ -263,13 +263,36 @@ namespace obs {
       obsws::emit(d);
     }
 
+    Json::Value batch;
+    batch["request-type"] = "ExecuteBatch";
+
     d.clear();
     d["request-type"] = "EnableStudioMode";
-    obsws::emit(d);
+    batch["requests"].append(d);
 
     scenes.clear();
+    d.clear();
     d["request-type"] = "GetSceneList";
-    auto scenelist = obsws::call(d);
+    batch["requests"].append(d);
+
+    transitions.clear();
+    d.clear();
+    d["request-type"] = "GetTransitionList";
+    batch["requests"].append(d);
+
+    d.clear();
+    d["request-type"] = "GetCurrentTransition";
+    batch["requests"].append(d);
+
+    d.clear();
+    d["request-type"] = "GetPreviewScene";
+    batch["requests"].append(d);
+
+    resp = obsws::call(batch);
+    if (! resp.isMember("status") || resp["status"] != "ok")
+      return;
+
+    auto& scenelist = resp["results"][1];
     if (scenelist.isMember("status") && scenelist["status"] == "ok") {
       bool has_Black = false;
       current_scene = scenelist["current-scene"].asString();
@@ -288,29 +311,22 @@ namespace obs {
       }
     }
 
-    transitions.clear();
-    d.clear();
-    d["request-type"] = "GetTransitionList";
-    auto transitionlist = obsws::call(d);
+    auto& transitionlist = resp["results"][2];
     if (transitionlist.isMember("status") && transitionlist["status"] == "ok")
       for (auto& t : transitionlist["transitions"])
         if (auto name = t["name"].asString(); name != "Cut")
           transitions.emplace(std::piecewise_construct, std::forward_as_tuple(name), std::forward_as_tuple(1 + transitions.size(), name));
 
-    d.clear();
-    d["request-type"] = "GetCurrentTransition";
-    resp = obsws::call(d);
-    if (resp.isMember("status") && resp["status"] == "ok") {
-      current_transition = resp["name"].asString();
-      if (resp.isMember("duration"))
-        current_duration_ms = resp["duration"].asInt();
+    auto& ctransition = resp["results"][3];
+    if (ctransition.isMember("status") && ctransition["status"] == "ok") {
+      current_transition = ctransition["name"].asString();
+      if (ctransition.isMember("duration"))
+        current_duration_ms = ctransition["duration"].asInt();
       else
         current_duration_ms = -1;
     }
 
-    d.clear();
-    d["request-type"] = "GetPreviewScene";
-    auto previewscene = obsws::call(d);
+    auto previewscene = resp["results"][4];
     if (previewscene.isMember("status") && previewscene["status"] == "ok")
       current_preview = previewscene["name"].asString();
   }
