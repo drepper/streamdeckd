@@ -295,7 +295,7 @@ namespace {
     if (lws_retry_sul_schedule(context.get(), 0, &wrap.sul, &retry, client::connect, &retry_count)) {
       lwsl_err("%s: rescheduling after connection timeout failed", __func__);
     }
-    else std::cout << "reschedule in exhausted worked\n";
+    // else std::cout << "reschedule in exhausted worked\n";
   }
 
 
@@ -354,7 +354,7 @@ namespace {
     switch (reason) {
     case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
       lwsl_err("CLIENT_CONNECTION_ERROR: %s\n", in ? (char *)in : "(null)");
-      std::cout << "going to retry\n";
+      // std::cout << "going to retry\n";
       goto do_retry;
 
     case LWS_CALLBACK_CLIENT_ESTABLISHED:
@@ -402,7 +402,9 @@ namespace {
         } else {
           // There is no error code.  For incomlete messages we see an error string containing
           //    Missing '}' or object member name
-          if (err.find("Missing '}'") == std::string::npos) {
+          // or
+          //    Missing ',' or '}' in object declaration
+          if (err.find("Missing '}'") == std::string::npos && err.find("Missing ',' or '}'") == std::string::npos) {
             chunks.clear();
             lwsl_err("%s: invalid JSON: %s\n", __func__, err.c_str());
           }

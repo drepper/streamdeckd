@@ -36,6 +36,9 @@ namespace obs {
             active = i->get_current_preview().nr == nr;
           iconname = active ? icon1 : icon2;
         }
+      } else if (keyop == keyop_type::transition) {
+        if (nr <= i->transition_count())
+          iconname = i->get_current_transition().nr == nr ? icon1 : icon2;
       } else {
         iconname = icon1;
         // std::cout << "new single icon " << iconname << std::endl;
@@ -82,7 +85,7 @@ namespace obs {
       break;
     case keyop_type::auto_rate:
       d["request-type"] = "TransitionToProgram";
-      d["with-transition"]["name"] = i->get_current_transition();
+      d["with-transition"]["name"] = i->get_current_transition().name;
       d["with-transition"]["duration"] = i->get_current_duration();
       obsws::emit(d);
       break;
@@ -105,6 +108,11 @@ namespace obs {
         batch["requests"].append(d);
       }
       obsws::emit(batch);
+      break;
+    case keyop_type::transition:
+      d["request-type"] = "SetCurrentTransition";
+      d["transition-name"] = i->get_transition_name(nr);
+      obsws::emit(d);
       break;
     default:
       break;
@@ -184,6 +192,8 @@ namespace obs {
           b.update();
         for (auto& b : auto_buttons)
           b.update();
+        for (auto& b : transition_buttons)
+          std::get<1>(b).update();
         break;
       case work_request::work_type::scene:
         {
@@ -227,7 +237,14 @@ namespace obs {
         }
         break;
       case work_request::work_type::transition:
-        current_transition = std::get<0>(req.names);
+        {
+          auto& old_transition = get_current_transition();
+          current_transition = std::get<0>(req.names);
+          auto& new_transition = get_current_transition();
+          for (auto& p : transition_buttons)
+            if (p.second.nr == old_transition.nr || p.second.nr == new_transition.nr)
+              p.second.update();
+        }
         break;
       }
     }
@@ -374,6 +391,9 @@ namespace obs {
       return &auto_buttons.emplace_back(0, d, this, row, column, icon1, icon1, keyop_type::auto_rate);
     } else if (function == "scene-ftb") {
       return &auto_buttons.emplace_back(0, d, this, row, column, icon1, icon1, keyop_type::ftb);
+    } else if (function == "transition") {
+      unsigned nr = unsigned(config["nr"]);
+      return &transition_buttons.emplace(nr, button(nr, d, this, row, column, icon1, icon2, keyop_type::transition))->second;
     }
 
     return nullptr;
@@ -389,6 +409,12 @@ namespace obs {
   scene& info::get_current_preview()
   {
     return scenes[current_preview];
+  }
+
+
+  transition& info::get_current_transition()
+  {
+    return transitions[current_transition];
   }
 
 

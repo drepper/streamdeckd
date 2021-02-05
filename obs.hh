@@ -27,6 +27,7 @@ namespace obs {
     cut,
     auto_rate,
     ftb,
+    transition,
   };
 
 
@@ -85,13 +86,15 @@ namespace obs {
 
     void add_scene(unsigned idx, const char* name);
     unsigned scene_count() const { return scenes.size(); }
+    unsigned transition_count() const { return transitions.size(); }
     scene& get_current_scene();
     scene& get_current_preview();
     int get_current_duration() const { return current_duration_ms; }
     scene& get_scene(const std::string& s);
     scene& get_preview(const std::string& s);
-    const std::string& get_current_transition() const { return current_transition; }
+    transition& get_current_transition();
     std::string& get_scene_name(unsigned nr) { for (auto& p : scenes) if (p.second.nr == nr) return p.second.name; throw std::runtime_error("invalid scene number"); }
+    std::string& get_transition_name(unsigned nr) { for (auto& p : transitions) if (p.second.nr == nr) return p.second.name; throw std::runtime_error("invalid transition number"); }
 
     void worker_thread();
     void callback(const Json::Value& val);
@@ -121,6 +124,7 @@ namespace obs {
     std::unordered_multimap<unsigned,button> scene_preview_buttons;
     std::list<button> cut_buttons;
     std::list<button> auto_buttons;
+    std::unordered_multimap<unsigned,button> transition_buttons;
   };
 
 } // namespace obs

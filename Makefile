@@ -35,6 +35,7 @@ ALLPKGS = $(IFACEPKGS) $(DEPPKGS)
 OBJS = main.o obs.o obsws.o
 
 SVGS = brightness+.svg brightness-.svg color+.svg color-.svg ftb.svg \
+       $(wildcard transition[1-4].svg) $(wildcard transition[1-4]_off.svg) \
        $(wildcard scene[1-8]_live.svg) $(wildcard scene[1-8]_live_off.svg) \
        $(wildcard scene[1-8]_preview.svg) $(wildcard scene[1-8]_preview_off.svg) cut.svg auto.svg
 PNGS = $(SVGS:.svg=.png) bulb_on.png bulb_off.png bluejeans.png
@@ -59,6 +60,8 @@ main.o: obs.hh
 obs.o: obs.hh obsws.hh
 obsws.o: obsws.hh
 
+pngs: $(SVGS:.svg=.png)
+
 install: streamdeckd streamdeckd.desktop $(PNGS)
 	$(INSTALL) -D -c -m 755 streamdeckd $(DESTDIR)$(bindir)/streamdeckd
 	for p in $(PNGS); do \
@@ -80,5 +83,5 @@ rpm: dist
 clean:
 	$(RM_F) streamdeckd $(OBJS) streamdeckd.spec streamdeckd.desktop
 
-.PHONY: all install dist srpm rpm clean
+.PHONY: all install pngs dist srpm rpm clean
 .ONESHELL:
