@@ -55,9 +55,9 @@ namespace obs {
     if (! i->connected)
       return;
 
+    Json::Value batch;
     Json::Value d;
     std::string old;
-    int val;
 
     switch(keyop) {
     case keyop_type::live_scene:
@@ -87,24 +87,24 @@ namespace obs {
       obsws::emit(d);
       break;
     case keyop_type::ftb:
-      d["request-type"] = "GetTransitionDuration";
-      val = obsws::call(d)["transition-duration"].asInt();
+      batch["request-type"] = "ExecuteBatch";
       i->handle_next_transition_change.clear();
       d.clear();
       d["request-type"] = "SetPreviewScene";
       d["scene-name"] = "Black";
-      obsws::emit(d);
+      batch["requests"].append(d);
       d.clear();
       d["request-type"] = "TransitionToProgram";
       d["with-transition"]["name"] = "Fade";
       d["with-transition"]["duration"] = 1000;
-      obsws::emit(d);
-      if (val != 1000) {
+      batch["requests"].append(d);
+      if (i->get_current_duration() != 1000) {
         d.clear();
         d["request-type"] = "SetTransitionDuration";
-        d["duration"] = val;
-        obsws::emit(d);
+        d["duration"] = i->get_current_duration();
+        batch["requests"].append(d);
       }
+      obsws::emit(batch);
       break;
     default:
       break;
@@ -116,14 +116,23 @@ namespace obs {
   {
     if (config.exists("server"))
       server = std::string(config["server"]);
+    else
+      server = "localhost";
     if (config.exists("port"))
       port = int(config["port"]);
+    else
+      port = 4444;
     if (config.exists("password"))
       password = std::string(config["password"]);
+    else
+      password = "";
     if (config.exists("log")) {
       log = std::string(config["log"]);
 
       log_unknown_events = log.find("unknown") != std::string::npos;
+    } else {
+      log = "";
+      log_unknown_events = false;
     }
 
     // std::cout << "calling obsws::config\n";
@@ -404,8 +413,10 @@ namespace obs {
       }
     } else if (update_type == "Exiting")
       connection_update(false);
+    else if (update_type == "TransitionDurationChanged")
+      current_duration_ms = val["new-duration"].asInt();
     else if (log_unknown_events)
-      std::cout << "info::callback " << val << std::endl;
+      std::cout << "info::callback unhandled event = " << val << std::endl;
   }
 
 
