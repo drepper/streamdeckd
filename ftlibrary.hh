@@ -10,6 +10,12 @@
 #include <Magick++.h>
 #include <utf8proc.h>
 
+static_assert(__cpp_static_assert >= 200410, "extended static_assert missing");
+static_assert(__cpp_lib_filesystem >= 201703);
+static_assert(__cpp_range_based_for >= 200907);
+static_assert(__cpp_structured_bindings >= 201606);
+static_assert(__cpp_variadic_templates >= 200704);
+
 
 // Forward declarations.
 struct ftlibrary;
