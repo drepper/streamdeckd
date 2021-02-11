@@ -40,7 +40,7 @@ ftface::ftface(ftlibrary& library_, const std::string& facename)
     if (! error)
       return;
   }
-  std::runtime_error("cannot find font face "s + facename);
+  throw std::runtime_error("cannot find font face "s + facename);
 }
 
 
