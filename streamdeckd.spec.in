@@ -18,6 +18,9 @@ BuildRequires: libxdo-devel
 BuildRequires: libwebsockets-devel
 BuildRequires: jsoncpp-devel
 BuildRequires: libuuid-devel
+BuildRequires: freetype-devel
+BuildRequires: fontconfig-devel
+BuildRequires: ImageMagick-c++-devel
 BuildRequires: gcc-c++ >= 10.1
 
 %description

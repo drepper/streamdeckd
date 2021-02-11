@@ -1,4 +1,4 @@
-VERSION = 1.3
+VERSION = 1.4
 
 CXX = g++ $(CXXSTD)
 INSTALL = install
@@ -29,10 +29,10 @@ bindir = $(prefix)/bin
 sharedir = $(prefix)/share/streamdeckd-$(VERSION)
 
 IFACEPKGS = 
-DEPPKGS = libconfig++ keylightpp streamdeckpp libcrypto jsoncpp uuid libwebsockets
+DEPPKGS = freetype2 fontconfig Magick++ libconfig++ keylightpp streamdeckpp libcrypto jsoncpp uuid libwebsockets
 ALLPKGS = $(IFACEPKGS) $(DEPPKGS)
 
-OBJS = main.o obs.o obsws.o
+OBJS = main.o obs.o obsws.o ftlibrary.o
 
 SVGS = brightness+.svg brightness-.svg color+.svg color-.svg ftb.svg \
        $(wildcard transition[1-4].svg) $(wildcard transition[1-4]_off.svg) \
@@ -59,6 +59,7 @@ streamdeckd.spec streamdeckd.desktop: %: %.in Makefile
 main.o: obs.hh
 obs.o: obs.hh obsws.hh
 obsws.o: obsws.hh
+ftlibrary.o: ftlibrary.hh
 
 pngs: $(SVGS:.svg=.png)
 
@@ -72,7 +73,7 @@ install: streamdeckd streamdeckd.desktop $(PNGS)
 
 dist: streamdeckd.spec streamdeckd.desktop $(PNGS)
 	$(LN_FS) . streamdeckd-$(VERSION)
-	$(TAR) achf streamdeckd-$(VERSION).tar.xz streamdeckd-$(VERSION)/{Makefile,main.cc,obs.cc,obs.hh,obsws.cc,obsws.hh,README.md,streamdeckd.spec,streamdeckd.spec.in,streamdeckd.desktop.in,*.svg,*.png}
+	$(TAR) achf streamdeckd-$(VERSION).tar.xz streamdeckd-$(VERSION)/{Makefile,main.cc,obs.cc,obs.hh,obsws.cc,obsws.hh,ftlibrary.cc,ftlibrary.hh,README.md,streamdeckd.spec,streamdeckd.spec.in,streamdeckd.desktop.in,*.svg,*.png}
 	$(RM_F) streamdeckd-$(VERSION)
 
 srpm: dist
