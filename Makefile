@@ -32,7 +32,7 @@ IFACEPKGS =
 DEPPKGS = freetype2 fontconfig Magick++ libconfig++ keylightpp streamdeckpp libcrypto jsoncpp uuid libwebsockets
 ALLPKGS = $(IFACEPKGS) $(DEPPKGS)
 
-OBJS = main.o obs.o obsws.o ftlibrary.o
+OBJS = main.o obs.o obsws.o ftlibrary.o buttontext.o
 
 SVGS = brightness+.svg brightness-.svg color+.svg color-.svg ftb.svg \
        $(wildcard transition[1-4].svg) $(wildcard transition[1-4]_off.svg) \
@@ -60,6 +60,7 @@ main.o: obs.hh
 obs.o: obs.hh obsws.hh
 obsws.o: obsws.hh
 ftlibrary.o: ftlibrary.hh
+buttontext.o: buttontext.hh
 
 pngs: $(SVGS:.svg=.png)
 
@@ -73,7 +74,7 @@ install: streamdeckd streamdeckd.desktop $(PNGS)
 
 dist: streamdeckd.spec streamdeckd.desktop $(PNGS)
 	$(LN_FS) . streamdeckd-$(VERSION)
-	$(TAR) achf streamdeckd-$(VERSION).tar.xz streamdeckd-$(VERSION)/{Makefile,main.cc,obs.cc,obs.hh,obsws.cc,obsws.hh,ftlibrary.cc,ftlibrary.hh,README.md,streamdeckd.spec,streamdeckd.spec.in,streamdeckd.desktop.in,*.svg,*.png}
+	$(TAR) achf streamdeckd-$(VERSION).tar.xz streamdeckd-$(VERSION)/{Makefile,main.cc,obs.cc,obs.hh,obsws.cc,obsws.hh,ftlibrary.cc,ftlibrary.hh,buttontext.cc,buttontext.hh,README.md,streamdeckd.spec,streamdeckd.spec.in,streamdeckd.desktop.in,*.svg,*.png}
 	$(RM_F) streamdeckd-$(VERSION)
 
 srpm: dist
