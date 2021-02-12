@@ -298,6 +298,24 @@ namespace obs {
             it->second.update();
         }
         break;
+      case work_request::work_type::delete_scene:
+        {
+          auto& name = std::get<0>(req.names);
+          if (auto it = scenes.find(name); it != scenes.end()) {
+            auto nr = it->second.nr;
+            scenes.erase(it);
+            for (auto& s : scenes)
+              if (s.second.nr >= nr)
+                --s.second.nr;
+            for (auto& b : scene_live_buttons)
+              if (b.second.nr >= nr)
+                b.second.update();
+            for (auto& b : scene_preview_buttons)
+              if (b.second.nr >= nr)
+                b.second.update();
+          }
+        }
+        break;
       }
     }
   }
@@ -514,10 +532,10 @@ namespace obs {
       current_duration_ms = val["new-duration"].asInt();
       for (auto& b : auto_buttons)
         b.update();
-    } else if (update_type == "SourceCreated") {
+    } else if (update_type == "SourceCreated" || update_type == "SourceDestroyed") {
       if (val["sourceType"] == "scene") {
         std::lock_guard<std::mutex> guard(worker_m);
-        worker_queue.emplace(work_request::work_type::new_scene, 0, std::make_pair(val["sourceName"].asString(), std::string()));
+        worker_queue.emplace(update_type == "SourceCreated" ? work_request::work_type::new_scene : work_request::work_type::delete_scene, 0, std::make_pair(val["sourceName"].asString(), std::string()));
         worker_cv.notify_all();
       }
     } else if (log_unknown_events)

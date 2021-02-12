@@ -86,7 +86,7 @@ namespace obs {
 
 
   struct work_request {
-    enum struct work_type { none, new_session, buttons, scene, preview, transition, new_scene } type;
+    enum struct work_type { none, new_session, buttons, scene, preview, transition, new_scene, delete_scene } type;
     unsigned nr = 0;
     std::pair<std::string,std::string> names{ "", "" };
   };
