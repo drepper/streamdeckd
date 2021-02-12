@@ -47,7 +47,7 @@ namespace obs {
     auto k = (row - 1) * d->key_cols + column - 1;
 
     if (i->connected) {
-      std::cout << "update connected\n";
+      // std::cout << "update connected\n";
       if (keyop == keyop_type::live_scene || keyop == keyop_type::preview_scene) {
         if (nr <= i->scene_count()) {
           bool active;
@@ -57,7 +57,7 @@ namespace obs {
             active = i->get_current_preview().nr == nr;
           icon = active ? &icon1 : &icon2;
         }
-        else std::cout << "scene out of range\n";
+        // else std::cout << "scene out of range\n";
       } else if (keyop == keyop_type::transition) {
         if (nr <= i->transition_count())
           icon = i->get_current_transition().nr == nr ? &icon1 : &icon2;

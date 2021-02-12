@@ -23,6 +23,12 @@ extern "C" {
 using namespace std::string_literals;
 
 
+static_assert(__cpp_static_assert >= 200410L, "extended static_assert missing");
+static_assert(__cpp_lib_filesystem >= 201703);
+static_assert(__cpp_lib_make_unique >= 201304L);
+static_assert(__cpp_range_based_for >= 200907);
+
+
 namespace {
 
   struct deck_config;
@@ -231,7 +237,12 @@ namespace {
       if (serial == "" || d->get_serial_number() == serial) {
         d->reset();
 
+        unsigned brightness = 100;
+
         try {
+          if (! config.lookupValue("brightness", brightness))
+            brightness = 100;
+
           auto& keys = config.lookup("keys");
 
           for (unsigned k = 0; k < d->key_count; ++k) {
@@ -312,6 +323,8 @@ namespace {
         catch (libconfig::SettingNotFoundException&) {
           // No key settings.
         }
+
+        d->set_brightness(brightness);
         break;
       }
     }
