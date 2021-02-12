@@ -58,9 +58,6 @@ namespace obs {
           icon = active ? &icon1 : &icon2;
         }
         // else std::cout << "scene out of range\n";
-      } else if (keyop == keyop_type::transition) {
-        if (nr <= i->transition_count())
-          icon = i->get_current_transition().nr == nr ? &icon1 : &icon2;
       } else if (keyop == keyop_type::record) {
         icon = i->is_recording ? &icon1 : &icon2;
       } else if (keyop == keyop_type::stream) {
@@ -165,6 +162,31 @@ namespace obs {
       d->set_key_image(k, renderobj.draw(s.c_str(), color, std::get<0>(center), std::get<1>(center)));
     } else
       d->set_key_image(k, obsicon);
+  }
+
+
+  void transition_button::update()
+  {
+    auto k = (row - 1) * d->key_cols + column - 1;
+
+    if (i->connected) {
+      auto it = std::find_if(i->transitions.begin(), i->transitions.end(), [nr = base_type::nr](const auto& e){ return nr == e.second.nr; });
+      if (it != i->transitions.end()) {
+        auto name = it->second.name;
+        // XYZ Hack
+        if (name.size() > 5) name.erase(5);
+
+        if (i->get_current_transition().nr == nr) {
+          font_render<render_to_image> renderobj(fontobj, icon1, 0.8, 0.8);
+          d->set_key_image(k, renderobj.draw(name.c_str(), Magick::Color("black"), 0.5, 0.5));
+        } else {
+          font_render<render_to_image> renderobj(fontobj, icon2, 0.8, 0.8);
+          d->set_key_image(k, renderobj.draw(name.c_str(), Magick::Color("darkgray"), 0.5, 0.5));
+        }
+        return;
+      }
+    }
+    d->set_key_image(k, obsicon);
   }
 
 
@@ -521,8 +543,11 @@ namespace obs {
     } else if (function == "scene-ftb") {
       return &ftb_buttons.emplace_back(0, d, this, row, column, icon1, icon1, keyop_type::ftb);
     } else if (function == "transition") {
+      std::string font("Arial");
+      if (config.exists("font"))
+        config.lookupValue("font", font);
       unsigned nr = unsigned(config["nr"]);
-      return &transition_buttons.emplace(nr, button(nr, d, this, row, column, icon1, icon2, keyop_type::transition))->second;
+      return &transition_buttons.emplace(nr, transition_button(nr, d, this, row, column, icon1, icon2, keyop_type::transition, ftobj, font))->second;
     } else if (function == "toggle-record") {
       return &record_buttons.emplace_back(0, d, this, row, column, icon1, icon2, keyop_type::record);
     } else if (function == "toggle-stream") {

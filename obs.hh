@@ -87,6 +87,20 @@ namespace obs {
   };
 
 
+  struct transition_button : button {
+    using base_type = button;
+
+    transition_button(unsigned nr_, streamdeck::device_type* d_, info* i_, unsigned row_, unsigned column_, std::string& icon1_, std::string& icon2_, keyop_type keyop_, ftlibrary& ftobj, const std::string& font_)
+    : base_type(nr_, d_, i_, row_, column_, icon1_, icon2_, keyop_), fontobj(ftobj, std::move(font_))
+    {
+    }
+
+    void update();
+
+    ftface fontobj;
+  };
+
+
   struct work_request {
     enum struct work_type { none, new_session, buttons, scene, preview, transition, new_scene, delete_scene, recording, streaming } type;
     unsigned nr = 0;
@@ -147,7 +161,7 @@ namespace obs {
     std::list<button> cut_buttons;
     std::list<auto_button> auto_buttons;
     std::list<button> ftb_buttons;
-    std::unordered_multimap<unsigned,button> transition_buttons;
+    std::unordered_multimap<unsigned,transition_button> transition_buttons;
     std::list<button> record_buttons;
   };
 

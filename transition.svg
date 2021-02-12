@@ -13,7 +13,7 @@
    version="1.1"
    id="svg1710"
    inkscape:version="1.0.2 (e86c870879, 2021-01-15)"
-   sodipodi:docname="transition1.svg">
+   sodipodi:docname="transition.svg">
   <defs
      id="defs1704" />
   <sodipodi:namedview
@@ -24,7 +24,7 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="0.35"
-     inkscape:cx="126.65915"
+     inkscape:cx="-600.48371"
      inkscape:cy="220.94487"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
@@ -64,27 +64,5 @@
        x="72.321434"
        y="89.708336"
        ry="16.034723" />
-    <text
-       xml:space="preserve"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.5833px;line-height:1.25;font-family:Comfortaa;-inkscape-font-specification:Comfortaa;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.264583"
-       x="77.632927"
-       y="119.53075"
-       id="text946"><tspan
-         sodipodi:role="line"
-         id="tspan944"
-         x="77.632927"
-         y="119.53075"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:19.4028px;font-family:FreeSans;-inkscape-font-specification:'FreeSans, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#000000;stroke-width:0.264583">Trans.</tspan></text>
-    <text
-       xml:space="preserve"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.5833px;line-height:1.25;font-family:Comfortaa;-inkscape-font-specification:Comfortaa;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.264583"
-       x="99.65876"
-       y="135.93517"
-       id="text954"><tspan
-         sodipodi:role="line"
-         id="tspan952"
-         x="99.65876"
-         y="135.93517"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:19.4028px;font-family:FreeSans;-inkscape-font-specification:'FreeSans, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#000000;stroke-width:0.264583">1</tspan></text>
   </g>
 </svg>
