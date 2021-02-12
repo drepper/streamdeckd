@@ -61,6 +61,10 @@ namespace obs {
       } else if (keyop == keyop_type::transition) {
         if (nr <= i->transition_count())
           icon = i->get_current_transition().nr == nr ? &icon1 : &icon2;
+      } else if (keyop == keyop_type::record) {
+        icon = i->is_recording ? &icon1 : &icon2;
+      } else if (keyop == keyop_type::stream) {
+        icon = i->is_streaming ? &icon1 : &icon2;
       } else {
         icon = &icon1;
         // std::cout << "new single icon " << iconname << std::endl;
@@ -131,6 +135,14 @@ namespace obs {
     case keyop_type::transition:
       d["request-type"] = "SetCurrentTransition";
       d["transition-name"] = i->get_transition_name(nr);
+      obsws::emit(d);
+      break;
+    case keyop_type::record:
+      d["request-type"] = "StartStopRecording";
+      obsws::emit(d);
+      break;
+    case keyop_type::stream:
+      d["request-type"] = "StartStopStreaming";
       obsws::emit(d);
       break;
     default:
@@ -316,6 +328,16 @@ namespace obs {
           }
         }
         break;
+      case work_request::work_type::recording:
+        is_recording = req.nr != 0;
+        for (auto& b : record_buttons)
+          b.update();
+        break;
+      case work_request::work_type::streaming:
+        is_streaming = req.nr != 0;
+        for (auto& b : record_buttons)
+          b.update();
+        break;
       }
     }
   }
@@ -384,6 +406,14 @@ namespace obs {
     d["request-type"] = "GetPreviewScene";
     batch["requests"].append(d);
 
+    d.clear();
+    d["request-type"] = "GetRecordingStatus";
+    batch["requests"].append(d);
+
+    d.clear();
+    d["request-type"] = "GetStreamingStatus";
+    batch["requests"].append(d);
+
     resp = obsws::call(batch);
     if (! resp.isMember("status") || resp["status"] != "ok")
       return;
@@ -425,6 +455,16 @@ namespace obs {
     auto previewscene = resp["results"][4];
     if (previewscene.isMember("status") && previewscene["status"] == "ok")
       current_preview = previewscene["name"].asString();
+
+    auto recordingstatus = resp["results"][5];
+    if (recordingstatus.isMember("status") && recordingstatus["status"] == "ok")
+      is_recording = recordingstatus["isRecording"].asBool() && ! recordingstatus["isRecordingPaused"].asBool();
+
+    auto streamingstatus = resp["results"][6];
+    if (streamingstatus.isMember("status") && streamingstatus["status"] == "ok") {
+      is_streaming = streamingstatus["streaming"].asBool();
+      is_recording = streamingstatus["recording"].asBool() && ! streamingstatus["recording-paused"].asBool();
+    }
   }
 
 
@@ -483,6 +523,10 @@ namespace obs {
     } else if (function == "transition") {
       unsigned nr = unsigned(config["nr"]);
       return &transition_buttons.emplace(nr, button(nr, d, this, row, column, icon1, icon2, keyop_type::transition))->second;
+    } else if (function == "toggle-record") {
+      return &record_buttons.emplace_back(0, d, this, row, column, icon1, icon2, keyop_type::record);
+    } else if (function == "toggle-stream") {
+      return &record_buttons.emplace_back(0, d, this, row, column, icon1, icon2, keyop_type::stream);
     }
 
     return nullptr;
@@ -538,6 +582,14 @@ namespace obs {
         worker_queue.emplace(update_type == "SourceCreated" ? work_request::work_type::new_scene : work_request::work_type::delete_scene, 0, std::make_pair(val["sourceName"].asString(), std::string()));
         worker_cv.notify_all();
       }
+    } else if (update_type == "RecordingStarted" || update_type == "RecordingStopped") {
+      std::lock_guard<std::mutex> guard(worker_m);
+      worker_queue.emplace(work_request::work_type::recording, update_type == "RecordingStarted", std::make_pair(std::string(), std::string()));
+      worker_cv.notify_all();
+    } else if (update_type == "StreamStarted" || update_type == "StreamStopped") {
+      std::lock_guard<std::mutex> guard(worker_m);
+      worker_queue.emplace(work_request::work_type::streaming, update_type == "StreamStarted", std::make_pair(std::string(), std::string()));
+      worker_cv.notify_all();
     } else if (log_unknown_events)
       std::cout << "info::callback unhandled event = " << val << std::endl;
   }

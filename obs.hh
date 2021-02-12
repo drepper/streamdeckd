@@ -30,6 +30,8 @@ namespace obs {
     auto_rate,
     ftb,
     transition,
+    record,
+    stream,
   };
 
 
@@ -86,7 +88,7 @@ namespace obs {
 
 
   struct work_request {
-    enum struct work_type { none, new_session, buttons, scene, preview, transition, new_scene, delete_scene } type;
+    enum struct work_type { none, new_session, buttons, scene, preview, transition, new_scene, delete_scene, recording, streaming } type;
     unsigned nr = 0;
     std::pair<std::string,std::string> names{ "", "" };
   };
@@ -129,6 +131,9 @@ namespace obs {
 
     bool log_unknown_events = false;
 
+    bool is_recording = false;
+    bool is_streaming = false;
+
     std::unordered_map<std::string,obs::scene> scenes;
     std::string current_scene;
     std::string current_preview;
@@ -143,6 +148,7 @@ namespace obs {
     std::list<auto_button> auto_buttons;
     std::list<button> ftb_buttons;
     std::unordered_multimap<unsigned,button> transition_buttons;
+    std::list<button> record_buttons;
   };
 
 } // namespace obs
