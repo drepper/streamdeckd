@@ -14,6 +14,8 @@
 #include <streamdeckpp.hh>
 #include <json/json.h>
 
+#include "ftlibrary.hh"
+
 
 namespace obs {
 
@@ -48,25 +50,40 @@ namespace obs {
 
 
   struct button {
-    button(unsigned nr_, streamdeck::device_type* d_, info* i_, unsigned row_, unsigned column_, std::string& icon1_, std::string& icon2_, keyop_type keyop_)
-    : nr(nr_), d(d_), i(i_), row(row_), column(column_), icon1(icon1_), icon2(icon2_), keyop(keyop_)
-    {
-      update();
-    }
+    button(unsigned nr_, streamdeck::device_type* d_, info* i_, unsigned row_, unsigned column_, std::string& icon1_, std::string& icon2_, keyop_type keyop_);
 
     unsigned nr;
     streamdeck::device_type* d;
     info* i;
     unsigned row;
     unsigned column;
-    std::string icon1;
-    std::string icon2;
+    // std::string icon1;
+    // std::string icon2;
+    Magick::Image icon1;
+    Magick::Image icon2;
     keyop_type keyop;
 
     void call();
     void show_icon(unsigned key) {}
     void update();
     void initialize();
+  };
+
+
+  struct auto_button : button {
+    using base_type = button;
+
+    auto_button(unsigned nr_, streamdeck::device_type* d_, info* i_, unsigned row_, unsigned column_, std::string& icon1_, keyop_type keyop_, ftlibrary& ftobj, const std::string& font_, const std::string& color_, std::pair<double,double>&& center_, int& duration_ms_)
+    : base_type(nr_, d_, i_, row_, column_, icon1_, icon1_, keyop_), fontobj(ftobj, std::move(font_)), duration_ms(duration_ms_), color(color_), center(std::move(center_))
+    {
+    }
+
+    void update();
+
+    ftface fontobj;
+    int& duration_ms;
+    Magick::Color color;
+    std::pair<double,double> center;
   };
 
 
@@ -78,7 +95,7 @@ namespace obs {
 
 
   struct info {
-    info(const libconfig::Setting& config);
+    info(const libconfig::Setting& config, ftlibrary& ftobj_);
     ~info();
 
     void get_session_data();
@@ -99,6 +116,8 @@ namespace obs {
     void worker_thread();
     void callback(const Json::Value& val);
     void connection_update(bool connected_);
+
+    ftlibrary& ftobj;
 
     bool created_ws = false;
     bool connected = false;
@@ -123,7 +142,8 @@ namespace obs {
     std::unordered_multimap<unsigned,button> scene_live_buttons;
     std::unordered_multimap<unsigned,button> scene_preview_buttons;
     std::list<button> cut_buttons;
-    std::list<button> auto_buttons;
+    std::list<auto_button> auto_buttons;
+    std::list<button> ftb_buttons;
     std::unordered_multimap<unsigned,button> transition_buttons;
   };
 

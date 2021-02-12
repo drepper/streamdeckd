@@ -9,7 +9,7 @@ License: GPLv2
 %define sharedir %{_datadir}/streamdeckd-@VERSION@
 
 Requires: libstdc++
-BuildRequires: streamdeckpp-devel >= 1.1-4
+BuildRequires: streamdeckpp-devel >= 1.5-1
 BuildRequires: keylightpp-devel
 BuildRequires: libconfig-devel
 BuildRequires: cpprest-devel

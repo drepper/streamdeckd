@@ -399,15 +399,15 @@ namespace {
             event_cb(root);
 
           chunks.clear();
-        } else {
+        // } else {
           // There is no error code.  For incomlete messages we see an error string containing
           //    Missing '}' or object member name
           // or
           //    Missing ',' or '}' in object declaration
-          if (err.find("Missing '}'") == std::string::npos && err.find("Missing ',' or '}'") == std::string::npos) {
-            chunks.clear();
-            lwsl_err("%s: invalid JSON: %s\n", __func__, err.c_str());
-          }
+          // if (err.find("Missing '}'") == std::string::npos && err.find("Missing ',' or '}'") == std::string::npos && err.find("Syntax error: value, object or array") == std::string::npos) {
+          //   chunks.clear();
+          //   lwsl_err("%s: invalid JSON: %s\n", __func__, err.c_str());
+          // }
         }
       }
       break;

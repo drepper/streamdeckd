@@ -14,6 +14,7 @@ extern "C" {
 #include <streamdeckpp.hh>
 
 #include "obs.hh"
+#include "ftlibrary.hh"
 
 // XYZ Debug
 // #include <iostream>
@@ -204,6 +205,7 @@ namespace {
     xdo_t* xdo = nullptr;
     std::map<unsigned,std::unique_ptr<action>> actions;
     std::unique_ptr<obs::info> obs;
+    ftlibrary ftobj;
   };
 
 
@@ -219,7 +221,7 @@ namespace {
     if (config.exists("obs")) {
       auto& group = config.lookup("obs");
       if (group.isGroup())
-        obs = std::make_unique<obs::info>(group);
+        obs = std::make_unique<obs::info>(group, ftobj);
     }
 
     for (auto& d : ctx) {

@@ -29,7 +29,7 @@ bindir = $(prefix)/bin
 sharedir = $(prefix)/share/streamdeckd-$(VERSION)
 
 IFACEPKGS = 
-DEPPKGS = freetype2 fontconfig Magick++ libconfig++ keylightpp streamdeckpp libcrypto jsoncpp uuid libwebsockets
+DEPPKGS = freetype2 fontconfig Magick++ libutf8proc libconfig++ keylightpp streamdeckpp libcrypto jsoncpp uuid libwebsockets
 ALLPKGS = $(IFACEPKGS) $(DEPPKGS)
 
 OBJS = main.o obs.o obsws.o ftlibrary.o buttontext.o
@@ -38,7 +38,7 @@ SVGS = brightness+.svg brightness-.svg color+.svg color-.svg ftb.svg \
        $(wildcard transition[1-4].svg) $(wildcard transition[1-4]_off.svg) \
        $(wildcard scene[1-8]_live.svg) $(wildcard scene[1-8]_live_off.svg) \
        $(wildcard scene[1-8]_preview.svg) $(wildcard scene[1-8]_preview_off.svg) cut.svg auto.svg
-PNGS = $(SVGS:.svg=.png) bulb_on.png bulb_off.png bluejeans.png
+PNGS = $(SVGS:.svg=.png) bulb_on.png bulb_off.png bluejeans.png obs.png
 
 DEFINES-main.o = -DSHAREDIR=\"$(sharedir)\"
 DEFINES-obs.o = -DSHAREDIR=\"$(sharedir)\"
@@ -56,11 +56,11 @@ streamdeckd.spec streamdeckd.desktop: %: %.in Makefile
 	$(SED) 's/@VERSION@/$(VERSION)/' $< > $@-tmp
 	$(MV_F) $@-tmp $@
 
-main.o: obs.hh
-obs.o: obs.hh obsws.hh
+main.o: obs.hh ftlibrary.hh buttontext.hh
+obs.o: obs.hh obsws.hh ftlibrary.hh
 obsws.o: obsws.hh
 ftlibrary.o: ftlibrary.hh
-buttontext.o: buttontext.hh
+buttontext.o: buttontext.hh ftlibrary.hh
 
 pngs: $(SVGS:.svg=.png)
 

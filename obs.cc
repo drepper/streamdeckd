@@ -7,6 +7,7 @@
 #include <openssl/sha.h>
 
 #include "obsws.hh"
+#include "buttontext.hh"
 
 
 namespace obs {
@@ -18,15 +19,35 @@ namespace obs {
     std::string password("");
     std::string log("");
 
+
+    // XYZ Remove absolute path
+    Magick::Image obsicon("/home/drepper/devel/streamdeckd/obs.png");
+
+    auto make_absolute(std::filesystem::path&& path)
+    {
+      if (path.is_relative())
+        path = std::filesystem::path(SHAREDIR) / path;
+      return path;
+    }
+
   } // anonymous namespace;
+
+
+  button::button(unsigned nr_, streamdeck::device_type* d_, info* i_, unsigned row_, unsigned column_, std::string& icon1_, std::string& icon2_, keyop_type keyop_)
+
+  : nr(nr_), d(d_), i(i_), row(row_), column(column_), icon1(make_absolute(icon1_)), icon2(make_absolute(icon2_)), keyop(keyop_)
+  {
+    update();
+  }
 
 
   void button::update()
   {
-    // std::string iconname("com.obsproject.Studio.png");
-    std::string iconname("/home/drepper/devel/streamdeckd/obs.png");
+    auto icon = &obsicon;
+    auto k = (row - 1) * d->key_cols + column - 1;
 
     if (i->connected) {
+      std::cout << "update connected\n";
       if (keyop == keyop_type::live_scene || keyop == keyop_type::preview_scene) {
         if (nr <= i->scene_count()) {
           bool active;
@@ -34,22 +55,20 @@ namespace obs {
             active = i->get_current_scene().nr == nr;
           else
             active = i->get_current_preview().nr == nr;
-          iconname = active ? icon1 : icon2;
+          icon = active ? &icon1 : &icon2;
         }
+        else std::cout << "scene out of range\n";
       } else if (keyop == keyop_type::transition) {
         if (nr <= i->transition_count())
-          iconname = i->get_current_transition().nr == nr ? icon1 : icon2;
+          icon = i->get_current_transition().nr == nr ? &icon1 : &icon2;
       } else {
-        iconname = icon1;
+        icon = &icon1;
         // std::cout << "new single icon " << iconname << std::endl;
       }
     }
     // else std::cout << "not connected button type " << int(keyop) << std::endl;
 
-    auto path = std::filesystem::path(iconname);
-    if (path.is_relative())
-      path = std::filesystem::path(SHAREDIR) / path;
-    d->set_key_image((row - 1) * d->key_cols + column - 1, path.c_str());
+    d->set_key_image(k, *icon);
   }
 
 
@@ -120,7 +139,25 @@ namespace obs {
   }
 
 
-  info::info(const libconfig::Setting& config)
+  void auto_button::update()
+  {
+    auto k = (row - 1) * d->key_cols + column - 1;
+
+    if (i->connected) {
+      font_render<render_to_image> renderobj(fontobj, icon1, 0.8, 0.3);
+      auto s = std::to_string(duration_ms / 1000.0);
+      if (s.size() == 1)
+        s += ".0";
+      else if (s.size() > 3)
+        s.erase(3);
+      d->set_key_image(k, renderobj.draw(s.c_str(), color, std::get<0>(center), std::get<1>(center)));
+    } else
+      d->set_key_image(k, obsicon);
+  }
+
+
+  info::info(const libconfig::Setting& config, ftlibrary& ftobj_)
+  : ftobj(ftobj_)
   {
     if (config.exists("server"))
       server = std::string(config["server"]);
@@ -191,6 +228,8 @@ namespace obs {
         for (auto& b : cut_buttons)
           b.update();
         for (auto& b : auto_buttons)
+          b.update();
+        for (auto& b : ftb_buttons)
           b.update();
         for (auto& b : transition_buttons)
           std::get<1>(b).update();
@@ -388,9 +427,28 @@ namespace obs {
     } else if (function == "scene-cut") {
       return &cut_buttons.emplace_back(0, d, this, row, column, icon1, icon1, keyop_type::cut);
     } else if (function == "scene-auto") {
-      return &auto_buttons.emplace_back(0, d, this, row, column, icon1, icon1, keyop_type::auto_rate);
+      std::string font("Arial");
+      std::string color("red");
+      std::pair<double,double> center{ 0.5, 0.7 };
+      if (config.exists("transition")) {
+        auto& transition = config.lookup("transition");
+        if (transition.exists("font"))
+          transition.lookupValue("font", font);
+        if (transition.exists("color"))
+          transition.lookupValue("color", color);
+        if (transition.exists("center")) {
+          auto& centerlist = transition.lookup("center");
+          if (centerlist.isList() && centerlist.getLength() == 2) {
+            if (centerlist[0].isScalar())
+              std::get<0>(center) = centerlist[0];
+            if (centerlist[1].isScalar())
+              std::get<1>(center) = centerlist[1];
+          }
+        }
+      }
+      return &auto_buttons.emplace_back(0, d, this, row, column, icon1, keyop_type::auto_rate, ftobj, font, color, std::move(center), current_duration_ms);
     } else if (function == "scene-ftb") {
-      return &auto_buttons.emplace_back(0, d, this, row, column, icon1, icon1, keyop_type::ftb);
+      return &ftb_buttons.emplace_back(0, d, this, row, column, icon1, icon1, keyop_type::ftb);
     } else if (function == "transition") {
       unsigned nr = unsigned(config["nr"]);
       return &transition_buttons.emplace(nr, button(nr, d, this, row, column, icon1, icon2, keyop_type::transition))->second;
@@ -439,8 +497,11 @@ namespace obs {
       }
     } else if (update_type == "Exiting")
       connection_update(false);
-    else if (update_type == "TransitionDurationChanged")
+    else if (update_type == "TransitionDurationChanged") {
       current_duration_ms = val["new-duration"].asInt();
+      for (auto& b : auto_buttons)
+        b.update();
+    }
     else if (log_unknown_events)
       std::cout << "info::callback unhandled event = " << val << std::endl;
   }
