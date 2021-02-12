@@ -57,8 +57,6 @@ namespace obs {
     info* i;
     unsigned row;
     unsigned column;
-    // std::string icon1;
-    // std::string icon2;
     Magick::Image icon1;
     Magick::Image icon2;
     keyop_type keyop;
@@ -88,9 +86,9 @@ namespace obs {
 
 
   struct work_request {
-    enum struct work_type { none, new_session, buttons, scene, preview, transition } type;
+    enum struct work_type { none, new_session, buttons, scene, preview, transition, new_scene } type;
     unsigned nr = 0;
-    std::pair<std::string,std::string> names{ "", ""};
+    std::pair<std::string,std::string> names{ "", "" };
   };
 
 

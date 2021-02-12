@@ -285,6 +285,19 @@ namespace obs {
               p.second.update();
         }
         break;
+      case work_request::work_type::new_scene:
+        {
+          auto& name = std::get<0>(req.names);
+          unsigned nr = 1 + scenes.size();
+          scenes.emplace(std::piecewise_construct, std::forward_as_tuple(name), std::forward_as_tuple(nr, name));
+          auto rlive = scene_live_buttons.equal_range(nr);
+          for (auto it = rlive.first; it != rlive.second; ++it)
+            it->second.update();
+          auto rpreview = scene_preview_buttons.equal_range(nr);
+          for (auto it = rpreview.first; it != rpreview.second; ++it)
+            it->second.update();
+        }
+        break;
       }
     }
   }
@@ -501,8 +514,13 @@ namespace obs {
       current_duration_ms = val["new-duration"].asInt();
       for (auto& b : auto_buttons)
         b.update();
-    }
-    else if (log_unknown_events)
+    } else if (update_type == "SourceCreated") {
+      if (val["sourceType"] == "scene") {
+        std::lock_guard<std::mutex> guard(worker_m);
+        worker_queue.emplace(work_request::work_type::new_scene, 0, std::make_pair(val["sourceName"].asString(), std::string()));
+        worker_cv.notify_all();
+      }
+    } else if (log_unknown_events)
       std::cout << "info::callback unhandled event = " << val << std::endl;
   }
 
