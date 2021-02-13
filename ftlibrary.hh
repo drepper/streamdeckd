@@ -90,6 +90,8 @@ void font_render<T>::call_render(double fontsize, FT_UInt dpi, std::vector<utf8p
   bool use_kerning = FT_HAS_KERNING(fontface.face);
   FT_UInt prevglyphidx = 0;
 
+  renderer.start();
+
   for (auto wch : wbuf) {
     auto glyphidx = FT_Get_Char_Index(fontface.face, wch);
 
@@ -137,5 +139,41 @@ Magick::Image& font_render<T>::draw(const char* s, Args... args)
 
   return renderer.finish(std::forward<Args>(args)...);
 }
+
+
+#if 0
+template<typename T>
+template<typename... Args>
+Magick::Image& font_render<T>::draw(std::vector<const char*> vs, Args... args)
+{
+  std::vector<std::vector<utf8proc_int32_t>> vwbuf;
+
+  for (auto ve : vs) {
+    auto slen = strlen(s);
+    auto& wbuf = vwbuf.emplace_back();
+    wbuf.resize(slen + 1);
+    auto wlen = utf8proc_decompose(reinterpret_cast<const utf8proc_uint8_t*>(s), slen, wbuf.data(), wbuf.size(), UTF8PROC_NULLTERM);
+    if (wlen < 0)
+      throw std::runtime_error("invalid character");
+    wbuf.resize(wlen);
+  }
+
+
+  auto [fontsize, dpi] = renderer.first_font_size();
+  while (true) {
+    call_render(fontsize, dpi, wbuf);
+    
+    auto [finished, new_fontsize] = renderer.check_size();
+    if (finished) {
+      if (fontsize != new_fontsize)
+        call_render(new_fontsize, dpi, wbuf);
+      break;
+    }
+    fontsize = new_fontsize;
+  }
+
+  return renderer.finish(std::forward<Args>(args)...);
+}
+#endif
 
 #endif // ftlibrary.hh

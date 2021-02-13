@@ -20,6 +20,8 @@ struct render_to_image {
   {
   }
 
+  void start() { lines.emplace_back(); }
+
   void operator()(FT_GlyphSlot slot, FT_Int x){ render(slot, x); }
 
   std::pair<double,FT_UInt> first_font_size();
@@ -33,7 +35,7 @@ private:
   void render(FT_GlyphSlot slot, FT_Int x);
 
   void reset() {
-    slices.clear();
+    lines.clear();
     ymin = INT_MAX;
     ymax = INT_MIN;
   }
@@ -56,7 +58,9 @@ private:
     unsigned height;
     std::vector<uint8_t> bitmap;
   };
-  std::vector<slice> slices;
+  using line_type = std::vector<slice>;
+
+  std::vector<line_type> lines;
   int ymin = INT_MAX;
   int ymax = INT_MIN;
 };

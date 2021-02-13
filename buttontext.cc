@@ -20,6 +20,7 @@ render_to_image::slice::slice(int x_, int y_, FT_GlyphSlot slot)
 void render_to_image::render(FT_GlyphSlot slot, FT_Int x)
 {
   auto bitmap = &slot->bitmap;
+  auto& slices = lines.back();
 
   assert(bitmap->pixel_mode == FT_PIXEL_MODE_GRAY);
   assert(bitmap->num_grays == 256);
@@ -43,6 +44,7 @@ std::pair<double,FT_UInt> render_to_image::first_font_size()
 
 std::pair<bool,double> render_to_image::check_size()
 {
+  auto& slices = lines.back();
   unsigned width = slices.back().x + slices.back().width - slices.front().x;
   unsigned height = ymax - ymin;
 
@@ -103,6 +105,7 @@ Magick::Image& render_to_image::finish(Magick::Color foreground, double posx, do
   auto imheight = image.rows();
   auto* mem = view.get(0, 0, imwidth, imheight);
 
+  auto& slices = lines.back();
   unsigned width = slices.back().x + slices.back().width - slices.front().x;
   unsigned height = ymax - ymin;
 
