@@ -1,4 +1,4 @@
-VERSION = 1.6
+VERSION = 1.7
 
 CXX = g++ $(CXXSTD)
 INSTALL = install

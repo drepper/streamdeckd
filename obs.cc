@@ -568,17 +568,17 @@ namespace obs {
       config.lookupValue("icon2", icon2);
     else
       icon2 = icon1;
-    if (function == "scene-live" && config.exists("nr")){
+    if (function == "scene-live"){
       std::string font("Arial");
       if (config.exists("font"))
         config.lookupValue("font", font);
-      unsigned nr = unsigned(config["nr"]);
+      unsigned nr = 1 + scene_live_buttons.size();
       return &scene_live_buttons.emplace(nr, scene_button(nr, d, this, row, column, icon1, icon2, keyop_type::live_scene, ftobj, font))->second;
-    } else if (function == "scene-preview" && config.exists("nr")) {
+    } else if (function == "scene-preview") {
       std::string font("Arial");
       if (config.exists("font"))
         config.lookupValue("font", font);
-      unsigned nr = unsigned(config["nr"]);
+      unsigned nr = 1 + scene_preview_buttons.size();
       return &scene_preview_buttons.emplace(nr, scene_button(nr, d, this, row, column, icon1, icon2, keyop_type::preview_scene, ftobj, font))->second;
     } else if (function == "scene-cut") {
       return &cut_buttons.emplace_back(0, d, this, row, column, icon1, icon1, keyop_type::cut);
@@ -650,12 +650,12 @@ namespace obs {
       worker_cv.notify_all();
     } else if (update_type == "PreviewSceneChanged") {
       std::lock_guard<std::mutex> guard(worker_m);
-      worker_queue.emplace(work_request::work_type::preview, 0, std::vector{ val["scene-name"].asString(), std::string() });
+      worker_queue.emplace(work_request::work_type::preview, 0, std::vector{ val["scene-name"].asString() });
       worker_cv.notify_all();
     } else if (update_type == "SwitchTransition") {
       if (handle_next_transition_change.test_and_set()) {
         std::lock_guard<std::mutex> guard(worker_m);
-        worker_queue.emplace(work_request::work_type::transition, 0, std::vector{ val["transition-name"].asString(), std::string() });
+        worker_queue.emplace(work_request::work_type::transition, 0, std::vector{ val["transition-name"].asString() });
         worker_cv.notify_all();
       }
     } else if (update_type == "Exiting")
