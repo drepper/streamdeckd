@@ -11,11 +11,11 @@
    height="64mm"
    viewBox="0 0 64 64"
    version="1.1"
-   id="svg4151"
-   inkscape:version="1.0.1 (3bc2e813f5, 2020-09-07)"
-   sodipodi:docname="scene6_live.svg">
+   id="svg5999"
+   inkscape:version="1.0.2 (e86c870879, 2021-01-15)"
+   sodipodi:docname="scene_preview.svg">
   <defs
-     id="defs4145" />
+     id="defs5993" />
   <sodipodi:namedview
      id="base"
      pagecolor="#ffffff"
@@ -24,8 +24,8 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="0.35"
-     inkscape:cx="452.37345"
-     inkscape:cy="592.37345"
+     inkscape:cx="-590.96739"
+     inkscape:cy="616.17547"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      inkscape:document-rotation="0"
@@ -36,18 +36,18 @@
      fit-margin-bottom="0"
      inkscape:window-width="1538"
      inkscape:window-height="1212"
-     inkscape:window-x="6041"
-     inkscape:window-y="670"
+     inkscape:window-x="4232"
+     inkscape:window-y="412"
      inkscape:window-maximized="0" />
   <metadata
-     id="metadata4148">
+     id="metadata5996">
     <rdf:RDF>
       <cc:Work
          rdf:about="">
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -55,25 +55,14 @@
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
      id="layer1"
-     transform="translate(13.857142,8.5654764)">
+     transform="translate(-69.803574,14.863093)">
     <rect
-       style="fill:#d40000;stroke:none;stroke-width:0.169599"
-       id="rect881"
+       style="fill:#00aa00;stroke:none;stroke-width:0.169599"
+       id="rect923"
        width="64"
        height="64"
-       x="-13.857142"
-       y="-8.5654764"
+       x="69.803574"
+       y="-14.863093"
        ry="16.034723" />
-    <text
-       xml:space="preserve"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.5833px;line-height:1.25;font-family:Comfortaa;-inkscape-font-specification:Comfortaa;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.264583"
-       x="-1.471599"
-       y="47.635094"
-       id="text885"><tspan
-         sodipodi:role="line"
-         id="tspan883"
-         x="-1.471599"
-         y="47.635094"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:70.5556px;font-family:FreeSans;-inkscape-font-specification:'FreeSans, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#ffffff;stroke-width:0.264583">6</tspan></text>
   </g>
 </svg>

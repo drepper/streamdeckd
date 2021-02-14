@@ -166,6 +166,36 @@ namespace obs {
   }
 
 
+  void scene_button::update()
+  {
+    auto k = (row - 1) * d->key_cols + column - 1;
+
+    if (i->connected) {
+      auto it = std::find_if(i->scenes.begin(), i->scenes.end(), [nr = base_type::nr](const auto& e){ return nr == e.second.nr; });
+      if (it != i->scenes.end()) {
+        auto name = it->second.name;
+        std::vector<std::string> vs;
+        if (name.size() <= 5)
+          vs.emplace_back(name);
+        else {
+          std::istringstream iss(name);
+          vs = std::vector(std::istream_iterator<std::string>{iss}, std::istream_iterator<std::string>());
+        }
+
+        if ((keyop == keyop_type::live_scene && i->get_current_scene().nr == nr) || (keyop == keyop_type::preview_scene && i->get_current_preview().nr == nr)) {
+          font_render<render_to_image> renderobj(fontobj, icon1, 0.8, 0.8);
+          d->set_key_image(k, renderobj.draw(vs, Magick::Color(keyop == keyop_type::live_scene ? "white" : "black"), 0.5, 0.5));
+        } else {
+          font_render<render_to_image> renderobj(fontobj, icon2, 0.8, 0.8);
+          d->set_key_image(k, renderobj.draw(vs, Magick::Color("darkgray"), 0.5, 0.5));
+        }
+        return;
+      }
+    }
+    d->set_key_image(k, obsicon);
+  }
+
+
   void transition_button::update()
   {
     auto k = (row - 1) * d->key_cols + column - 1;
@@ -520,11 +550,17 @@ namespace obs {
     else
       icon2 = icon1;
     if (function == "scene-live" && config.exists("nr")){
+      std::string font("Arial");
+      if (config.exists("font"))
+        config.lookupValue("font", font);
       unsigned nr = unsigned(config["nr"]);
-      return &scene_live_buttons.emplace(nr, button(nr, d, this, row, column, icon1, icon2, keyop_type::live_scene))->second;
+      return &scene_live_buttons.emplace(nr, scene_button(nr, d, this, row, column, icon1, icon2, keyop_type::live_scene, ftobj, font))->second;
     } else if (function == "scene-preview" && config.exists("nr")) {
+      std::string font("Arial");
+      if (config.exists("font"))
+        config.lookupValue("font", font);
       unsigned nr = unsigned(config["nr"]);
-      return &scene_preview_buttons.emplace(nr, button(nr, d, this, row, column, icon1, icon2, keyop_type::preview_scene))->second;
+      return &scene_preview_buttons.emplace(nr, scene_button(nr, d, this, row, column, icon1, icon2, keyop_type::preview_scene, ftobj, font))->second;
     } else if (function == "scene-cut") {
       return &cut_buttons.emplace_back(0, d, this, row, column, icon1, icon1, keyop_type::cut);
     } else if (function == "scene-auto") {

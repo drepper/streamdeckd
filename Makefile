@@ -35,8 +35,7 @@ ALLPKGS = $(IFACEPKGS) $(DEPPKGS)
 OBJS = main.o obs.o obsws.o ftlibrary.o buttontext.o
 
 SVGS = brightness+.svg brightness-.svg color+.svg color-.svg ftb.svg \
-       $(wildcard scene[1-8]_live.svg) $(wildcard scene[1-8]_live_off.svg) \
-       $(wildcard scene[1-8]_preview.svg) $(wildcard scene[1-8]_preview_off.svg) \
+       scene_live.svg scene_live_off.svg scene_preview.svg scene_preview_off.svg \
        cut.svg auto.svg record.svg record_off.svg stream.svg stream_off.svg \
        transition.svg transition_off.svg
 PNGS = $(SVGS:.svg=.png) bulb_on.png bulb_off.png bluejeans.png obs.png
