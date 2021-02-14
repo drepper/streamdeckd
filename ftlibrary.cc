@@ -16,6 +16,9 @@ ftlibrary::ftlibrary()
 
 ftlibrary::~ftlibrary()
 {
+  FcConfigDestroy(fcconfig);
+  FcFini();
+  FT_Done_FreeType(library);
 }
 
 
