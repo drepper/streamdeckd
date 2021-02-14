@@ -25,20 +25,19 @@ struct render_to_image {
   void operator()(FT_GlyphSlot slot, FT_Int x){ render(slot, x); }
 
   std::pair<double,FT_UInt> first_font_size();
+  void compute_dimensions();
   std::pair<bool,double> check_size();
 
   bool goodenough(unsigned w, unsigned h) const;
 
   Magick::Image& finish(Magick::Color foreground = Magick::Color("black"), double posx = 0.5, double posy = 0.5);
 
-private:
-  void render(FT_GlyphSlot slot, FT_Int x);
-
   void reset() {
     lines.clear();
-    ymin = INT_MAX;
-    ymax = INT_MIN;
   }
+
+private:
+  void render(FT_GlyphSlot slot, FT_Int x);
 
   // Magick::Color background;
   Magick::Image background;
@@ -58,11 +57,16 @@ private:
     unsigned height;
     std::vector<uint8_t> bitmap;
   };
-  using line_type = std::vector<slice>;
-
+  struct line_type {
+    std::vector<slice> slices;
+    int ymin = INT_MAX;
+    int ymax = INT_MIN;
+  };
   std::vector<line_type> lines;
-  int ymin = INT_MAX;
-  int ymax = INT_MIN;
+  static constexpr double frac_linesep = 0.15;
+  unsigned maxwidth = 0;
+  unsigned totalheight = 0;
+  unsigned linesep = 0;
 };
 
 #endif // buttontext.hh

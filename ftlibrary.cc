@@ -37,8 +37,10 @@ ftface::ftface(ftlibrary& library_, const std::string& facename)
   auto fname = find_face_path(facename);
   if (! fname.empty()) {
     auto error = FT_New_Face(library.library, fname.c_str(), 0, &face);
-    if (! error)
+    if (! error) {
+      use_kerning = FT_HAS_KERNING(face);
       return;
+    }
   }
   throw std::runtime_error("cannot find font face "s + facename);
 }
@@ -66,4 +68,16 @@ std::filesystem::path ftface::find_face_path(const std::string& facename)
   FcPatternDestroy(pat);
 
   return res;
+}
+
+
+bool convert_string(const char* s, std::vector<utf8proc_int32_t>& wbuf)
+{
+  auto slen = strlen(s);
+  wbuf.resize(slen + 1);
+  auto wlen = utf8proc_decompose(reinterpret_cast<const utf8proc_uint8_t*>(s), slen, wbuf.data(), wbuf.size(), UTF8PROC_NULLTERM);
+  if (wlen < 0)
+    return false;
+  wbuf.resize(wlen);
+  return true;
 }
