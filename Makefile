@@ -53,7 +53,7 @@ $(SVGS:.svg=.png): %.png: %.svg
 	$(INKSCAPE) --export-type=png -o $@ $^
 
 streamdeckd.spec streamdeckd.desktop: %: %.in Makefile
-	$(SED) 's/@VERSION@/$(VERSION)/' $< > $@-tmp
+	$(SED) 's/@VERSION@/$(VERSION)/;s|@PREFIX@|$(prefix)|' $< > $@-tmp
 	$(MV_F) $@-tmp $@
 
 main.o: obs.hh ftlibrary.hh buttontext.hh Makefile
