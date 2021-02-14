@@ -273,6 +273,8 @@ namespace obs {
           b.update();
         for (auto& b : transition_buttons)
           std::get<1>(b).update();
+        for (auto& b : record_buttons)
+          b.update();
         break;
       case work_request::work_type::scene:
         {
