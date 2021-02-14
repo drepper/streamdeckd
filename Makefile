@@ -56,8 +56,8 @@ streamdeckd.spec streamdeckd.desktop: %: %.in Makefile
 	$(SED) 's/@VERSION@/$(VERSION)/' $< > $@-tmp
 	$(MV_F) $@-tmp $@
 
-main.o: obs.hh ftlibrary.hh buttontext.hh
-obs.o: obs.hh obsws.hh ftlibrary.hh
+main.o: obs.hh ftlibrary.hh buttontext.hh Makefile
+obs.o: obs.hh obsws.hh ftlibrary.hh Makefile
 obsws.o: obsws.hh
 ftlibrary.o: ftlibrary.hh
 buttontext.o: buttontext.hh ftlibrary.hh

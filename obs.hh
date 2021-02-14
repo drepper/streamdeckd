@@ -116,9 +116,21 @@ namespace obs {
 
 
   struct work_request {
-    enum struct work_type { none, new_session, buttons, scene, preview, transition, new_scene, delete_scene, recording, streaming } type;
+    enum struct work_type {
+        none,
+        new_session,
+        buttons,
+        scene,
+        preview,
+        transition,
+        new_scene,
+        delete_scene,
+        recording,
+        streaming,
+        sceneschanged,
+    } type;
     unsigned nr = 0;
-    std::pair<std::string,std::string> names{ "", "" };
+    std::vector<std::string> names;
   };
 
 

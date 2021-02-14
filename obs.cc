@@ -26,7 +26,6 @@ namespace obs {
     Magick::Color im_darkgray("darkgray");
 
 
-    // XYZ Remove absolute path
     Magick::Image obsicon(SHAREDIR "/obs.png");
     Magick::Image live_unused_icon(SHAREDIR "/scene_live_unused.png");
     Magick::Image preview_unused_icon(SHAREDIR "/scene_preview_unused.png");
@@ -258,7 +257,6 @@ namespace obs {
       log_unknown_events = false;
     }
 
-    // std::cout << "calling obsws::config\n";
     obsws::config([this](const Json::Value& val){ callback(val); }, [this](bool connected){ connection_update(connected); }, server.c_str(), port, log.c_str());
 
     worker = std::thread([this]{ worker_thread(); });
@@ -288,9 +286,7 @@ namespace obs {
     get_session_data();
 
     while (! terminate) {
-      // std::cout << "waiting for work request\n";
       auto req = get_request();
-      // std::cout << "worker request = " << int(req.type) << std::endl;
 
       switch(req.type) {
       case work_request::work_type::none:
@@ -319,8 +315,8 @@ namespace obs {
           auto& old_live = get_current_scene();
           auto& old_preview = get_current_preview();
 
-          current_scene = std::get<0>(req.names);
-          current_preview = std::get<1>(req.names);
+          current_scene = req.names[0];
+          current_preview = req.names[1];
           auto& new_live = get_current_scene();
           auto& new_preview = get_current_preview();
 
@@ -346,7 +342,7 @@ namespace obs {
         {
           auto& old_preview = get_current_preview();
 
-          current_preview = std::get<0>(req.names);
+          current_preview = req.names[0];
           auto& new_preview = get_current_preview();
 
           if (old_preview.nr != new_preview.nr)
@@ -358,7 +354,7 @@ namespace obs {
       case work_request::work_type::transition:
         {
           auto& old_transition = get_current_transition();
-          current_transition = std::get<0>(req.names);
+          current_transition = req.names[0];
           auto& new_transition = get_current_transition();
           for (auto& p : transition_buttons)
             if (p.second.nr == old_transition.nr || p.second.nr == new_transition.nr)
@@ -367,7 +363,7 @@ namespace obs {
         break;
       case work_request::work_type::new_scene:
         {
-          auto& name = std::get<0>(req.names);
+          auto& name = req.names[0];
           unsigned nr = 1 + scenes.size();
           scenes.emplace(std::piecewise_construct, std::forward_as_tuple(name), std::forward_as_tuple(nr, name));
           auto rlive = scene_live_buttons.equal_range(nr);
@@ -380,7 +376,7 @@ namespace obs {
         break;
       case work_request::work_type::delete_scene:
         {
-          auto& name = std::get<0>(req.names);
+          auto& name = req.names[0];
           if (auto it = scenes.find(name); it != scenes.end()) {
             auto nr = it->second.nr;
             scenes.erase(it);
@@ -405,6 +401,21 @@ namespace obs {
         is_streaming = req.nr != 0;
         for (auto& b : record_buttons)
           b.update();
+        break;
+      case work_request::work_type::sceneschanged:
+        scenes.clear();
+        for (auto& s : req.names)
+          scenes.emplace(std::piecewise_construct, std::forward_as_tuple(s), std::forward_as_tuple(1 + scenes.size(), s));
+        Json::Value d;
+        d["request-type"] = "GetCurrentScene";
+        current_scene = obsws::call(d)["name"].asString();
+        d.clear();
+        d["request-type"] = "GetPreviewScene";
+        current_preview = obsws::call(d)["name"].asString();
+        for (auto& b : scene_live_buttons)
+          b.second.update();
+        for (auto& b : scene_preview_buttons)
+          b.second.update();
         break;
       }
     }
@@ -435,10 +446,10 @@ namespace obs {
       unsigned char enchashbuf[(sizeof(hashbuf) + 2) / 3 * 4 + 1];
       auto enclen = EVP_EncodeBlock(enchashbuf, hashbuf, SHA256_DIGEST_LENGTH);
 
-      auto challenge = resp["challenge"].asCString();
+      auto challenge = resp["challenge"].asString();
       SHA256_Init(&shactx);
       SHA256_Update(&shactx, enchashbuf, enclen);
-      SHA256_Update(&shactx, challenge, strlen(challenge));
+      SHA256_Update(&shactx, challenge.c_str(), challenge.size());
       SHA256_Final(hashbuf, &shactx);
 
       EVP_EncodeBlock(enchashbuf, hashbuf, SHA256_DIGEST_LENGTH);
@@ -635,16 +646,16 @@ namespace obs {
     auto update_type = val["update-type"]; 
     if (update_type == "TransitionVideoEnd") {
       std::lock_guard<std::mutex> guard(worker_m);
-      worker_queue.emplace(work_request::work_type::scene, 0, std::make_pair(val["to-scene"].asString(), val["from-scene"].asString()));
+      worker_queue.emplace(work_request::work_type::scene, 0, std::vector{ val["to-scene"].asString(), val["from-scene"].asString() });
       worker_cv.notify_all();
     } else if (update_type == "PreviewSceneChanged") {
       std::lock_guard<std::mutex> guard(worker_m);
-      worker_queue.emplace(work_request::work_type::preview, 0, std::make_pair(val["scene-name"].asString(), std::string()));
+      worker_queue.emplace(work_request::work_type::preview, 0, std::vector{ val["scene-name"].asString(), std::string() });
       worker_cv.notify_all();
     } else if (update_type == "SwitchTransition") {
       if (handle_next_transition_change.test_and_set()) {
         std::lock_guard<std::mutex> guard(worker_m);
-        worker_queue.emplace(work_request::work_type::transition, 0, std::make_pair(val["transition-name"].asString(), std::string()));
+        worker_queue.emplace(work_request::work_type::transition, 0, std::vector{ val["transition-name"].asString(), std::string() });
         worker_cv.notify_all();
       }
     } else if (update_type == "Exiting")
@@ -656,16 +667,23 @@ namespace obs {
     } else if (update_type == "SourceCreated" || update_type == "SourceDestroyed") {
       if (val["sourceType"] == "scene") {
         std::lock_guard<std::mutex> guard(worker_m);
-        worker_queue.emplace(update_type == "SourceCreated" ? work_request::work_type::new_scene : work_request::work_type::delete_scene, 0, std::make_pair(val["sourceName"].asString(), std::string()));
+        worker_queue.emplace(update_type == "SourceCreated" ? work_request::work_type::new_scene : work_request::work_type::delete_scene, 0, std::vector{ val["sourceName"].asString() });
         worker_cv.notify_all();
       }
     } else if (update_type == "RecordingStarted" || update_type == "RecordingStopped") {
       std::lock_guard<std::mutex> guard(worker_m);
-      worker_queue.emplace(work_request::work_type::recording, update_type == "RecordingStarted", std::make_pair(std::string(), std::string()));
+      worker_queue.emplace(work_request::work_type::recording, update_type == "RecordingStarted");
       worker_cv.notify_all();
     } else if (update_type == "StreamStarted" || update_type == "StreamStopped") {
       std::lock_guard<std::mutex> guard(worker_m);
-      worker_queue.emplace(work_request::work_type::streaming, update_type == "StreamStarted", std::make_pair(std::string(), std::string()));
+      worker_queue.emplace(work_request::work_type::streaming, update_type == "StreamStarted");
+      worker_cv.notify_all();
+    } else if (update_type == "ScenesChanged") {
+      std::vector<std::string> newscenes;
+      for (auto& s : val["scenes"])
+        newscenes.emplace_back(s["name"].asString());
+      std::lock_guard<std::mutex> guard(worker_m);
+      worker_queue.emplace(work_request::work_type::sceneschanged, 0, newscenes);
       worker_cv.notify_all();
     } else if (log_unknown_events)
       std::cout << "info::callback unhandled event = " << val << std::endl;
@@ -676,7 +694,6 @@ namespace obs {
   // affect the state of the object.
   void info::connection_update(bool connected_)
   {
-    // std::cout << "connection_update " << std::boolalpha << connected << " to " << connected_ << std::endl;
     if (connected == connected_)
       return;
 
