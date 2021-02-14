@@ -1,6 +1,7 @@
 #include "obs.hh"
 
 #include <cassert>
+#include <iterator>
 #include <filesystem>
 
 #include <openssl/evp.h>
@@ -159,7 +160,7 @@ namespace obs {
         s += ".0";
       else if (s.size() > 3)
         s.erase(3);
-      d->set_key_image(k, renderobj.draw(s.c_str(), color, std::get<0>(center), std::get<1>(center)));
+      d->set_key_image(k, renderobj.draw(s, color, std::get<0>(center), std::get<1>(center)));
     } else
       d->set_key_image(k, obsicon);
   }
@@ -173,15 +174,20 @@ namespace obs {
       auto it = std::find_if(i->transitions.begin(), i->transitions.end(), [nr = base_type::nr](const auto& e){ return nr == e.second.nr; });
       if (it != i->transitions.end()) {
         auto name = it->second.name;
-        // XYZ Hack
-        if (name.size() > 5) name.erase(5);
+        std::vector<std::string> vs;
+        if (name.size() <= 5)
+          vs.emplace_back(name);
+        else {
+          std::istringstream iss(name);
+          vs = std::vector(std::istream_iterator<std::string>{iss}, std::istream_iterator<std::string>());
+        }
 
         if (i->get_current_transition().nr == nr) {
           font_render<render_to_image> renderobj(fontobj, icon1, 0.8, 0.8);
-          d->set_key_image(k, renderobj.draw(name.c_str(), Magick::Color("black"), 0.5, 0.5));
+          d->set_key_image(k, renderobj.draw(vs, Magick::Color("black"), 0.5, 0.5));
         } else {
           font_render<render_to_image> renderobj(fontobj, icon2, 0.8, 0.8);
-          d->set_key_image(k, renderobj.draw(name.c_str(), Magick::Color("darkgray"), 0.5, 0.5));
+          d->set_key_image(k, renderobj.draw(vs, Magick::Color("darkgray"), 0.5, 0.5));
         }
         return;
       }

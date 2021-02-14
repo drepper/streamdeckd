@@ -71,11 +71,10 @@ std::filesystem::path ftface::find_face_path(const std::string& facename)
 }
 
 
-bool convert_string(const char* s, std::vector<utf8proc_int32_t>& wbuf)
+bool convert_string(const std::string& s, std::vector<utf8proc_int32_t>& wbuf)
 {
-  auto slen = strlen(s);
-  wbuf.resize(slen + 1);
-  auto wlen = utf8proc_decompose(reinterpret_cast<const utf8proc_uint8_t*>(s), slen, wbuf.data(), wbuf.size(), UTF8PROC_NULLTERM);
+  wbuf.resize(s.size() + 1);
+  auto wlen = utf8proc_decompose(reinterpret_cast<const utf8proc_uint8_t*>(s.c_str()), s.size(), wbuf.data(), wbuf.size(), UTF8PROC_NULLTERM);
   if (wlen < 0)
     return false;
   wbuf.resize(wlen);
