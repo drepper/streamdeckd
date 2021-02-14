@@ -20,6 +20,7 @@ namespace obs {
     std::string password("");
     std::string log("");
 
+    std::string obsfont("Arial");
 
     Magick::Color im_black("black");
     Magick::Color im_white("white");
@@ -256,6 +257,10 @@ namespace obs {
       log = "";
       log_unknown_events = false;
     }
+    if (config.exists("font"))
+      obsfont = std::string(config["font"]);
+    else
+      obsfont = "Arial";
 
     obsws::config([this](const Json::Value& val){ callback(val); }, [this](bool connected){ connection_update(connected); }, server.c_str(), port, log.c_str());
 
@@ -569,21 +574,29 @@ namespace obs {
     else
       icon2 = icon1;
     if (function == "scene-live"){
-      std::string font("Arial");
+      std::string font;
       if (config.exists("font"))
         config.lookupValue("font", font);
+      else
+	font = obsfont;
       unsigned nr = 1 + scene_live_buttons.size();
       return &scene_live_buttons.emplace(nr, scene_button(nr, d, this, row, column, icon1, icon2, keyop_type::live_scene, ftobj, font))->second;
     } else if (function == "scene-preview") {
-      std::string font("Arial");
+      std::string font;
       if (config.exists("font"))
         config.lookupValue("font", font);
+      else
+	font = obsfont;
       unsigned nr = 1 + scene_preview_buttons.size();
       return &scene_preview_buttons.emplace(nr, scene_button(nr, d, this, row, column, icon1, icon2, keyop_type::preview_scene, ftobj, font))->second;
     } else if (function == "scene-cut") {
       return &cut_buttons.emplace_back(0, d, this, row, column, icon1, icon1, keyop_type::cut);
     } else if (function == "scene-auto") {
-      std::string font("Arial");
+      std::string font;
+      if (config.exists("font"))
+	config.lookupValue("font", font);
+      else
+	font = obsfont;
       std::string color("red");
       std::pair<double,double> center{ 0.5, 0.7 };
       if (config.exists("transition")) {
@@ -606,9 +619,11 @@ namespace obs {
     } else if (function == "scene-ftb") {
       return &ftb_buttons.emplace_back(0, d, this, row, column, icon1, icon1, keyop_type::ftb);
     } else if (function == "transition") {
-      std::string font("Arial");
+      std::string font;
       if (config.exists("font"))
         config.lookupValue("font", font);
+      else
+	font = obsfont;
       unsigned nr = unsigned(config["nr"]);
       return &transition_buttons.emplace(nr, transition_button(nr, d, this, row, column, icon1, icon2, keyop_type::transition, ftobj, font))->second;
     } else if (function == "toggle-record") {
