@@ -80,4 +80,13 @@ remedied by restarting the daemon.
 
 
 
+To Do
+-----
+
+1. Dimm/turn off lights when session not active (and not rcording?)
+2. When config file changed, reload
+3. GUI for creation of the config file
+4. Support multiple pages
+
+
 Author: Ulrich Drepper <drepper@gmail.com>
