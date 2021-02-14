@@ -27,7 +27,10 @@ namespace obs {
 
 
     // XYZ Remove absolute path
-    Magick::Image obsicon("/home/drepper/devel/streamdeckd/obs.png");
+    Magick::Image obsicon(SHAREDIR "/obs.png");
+    Magick::Image live_unused_icon(SHAREDIR "/scene_live_unused.png");
+    Magick::Image preview_unused_icon(SHAREDIR "/scene_preview_unused.png");
+
 
     auto make_absolute(std::filesystem::path&& path)
     {
@@ -197,7 +200,7 @@ namespace obs {
         return;
       }
     }
-    d->set_key_image(k, obsicon);
+    d->set_key_image(k, keyop == keyop_type::live_scene ? live_unused_icon : preview_unused_icon);
   }
 
 

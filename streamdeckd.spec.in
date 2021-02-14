@@ -50,8 +50,8 @@ mkdir -p ${RPM_BUILD_ROOT}%{_prefix}
 %{_datadir}/icons/hicolor/scalable/apps/streamdeckd.svg
 
 %changelog
-* Sun Feb 14 2021 Ulrich Drepper <drepper@gmail.com> 1.5-1
-- Label keys based on OBS transition names
+* Sun Feb 14 2021 Ulrich Drepper <drepper@gmail.com> 1.6-1
+- Label keys based on OBS scene and transition names
 - Add record/stream keys
 * Thu Feb 4 2021 Ulrich Drepper <drepper@gmail.com> 1.3-1
   Update to 1.3 with better OBS WS support.
