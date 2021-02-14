@@ -38,7 +38,7 @@ SVGS = brightness+.svg brightness-.svg color+.svg color-.svg ftb.svg obs.svg \
        scene_live.svg scene_live_off.svg scene_preview.svg scene_preview_off.svg \
        cut.svg auto.svg record.svg record_off.svg stream.svg stream_off.svg \
        transition.svg transition_off.svg scene_live_unused.svg scene_preview_unused.svg
-PNGS = $(SVGS:.svg=.png) bulb_on.png bulb_off.png bluejeans.png obs.png
+PNGS = $(SVGS:.svg=.png) bulb_on.png bulb_off.png bluejeans.png
 
 DEFINES-main.o = -DSHAREDIR=\"$(sharedir)\"
 DEFINES-obs.o = -DSHAREDIR=\"$(sharedir)\"
@@ -57,10 +57,10 @@ streamdeckd.spec streamdeckd.desktop: %: %.in Makefile
 	$(MV_F) $@-tmp $@
 
 main.o: obs.hh ftlibrary.hh buttontext.hh Makefile
-obs.o: obs.hh obsws.hh ftlibrary.hh Makefile
+obs.o: obs.hh obsws.hh buttontext.hh ftlibrary.hh Makefile
 obsws.o: obsws.hh
 ftlibrary.o: ftlibrary.hh
-buttontext.o: buttontext.hh ftlibrary.hh
+buttontext.o: buttontext.hh
 
 pngs: $(SVGS:.svg=.png)
 
