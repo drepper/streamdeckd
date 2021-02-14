@@ -21,6 +21,11 @@ namespace obs {
     std::string log("");
 
 
+    Magick::Color im_black("black");
+    Magick::Color im_white("white");
+    Magick::Color im_darkgray("darkgray");
+
+
     // XYZ Remove absolute path
     Magick::Image obsicon("/home/drepper/devel/streamdeckd/obs.png");
 
@@ -184,10 +189,10 @@ namespace obs {
 
         if ((keyop == keyop_type::live_scene && i->get_current_scene().nr == nr) || (keyop == keyop_type::preview_scene && i->get_current_preview().nr == nr)) {
           font_render<render_to_image> renderobj(fontobj, icon1, 0.8, 0.8);
-          d->set_key_image(k, renderobj.draw(vs, Magick::Color(keyop == keyop_type::live_scene ? "white" : "black"), 0.5, 0.5));
+          d->set_key_image(k, renderobj.draw(vs, keyop == keyop_type::live_scene ? im_white : im_black, 0.5, 0.5));
         } else {
           font_render<render_to_image> renderobj(fontobj, icon2, 0.8, 0.8);
-          d->set_key_image(k, renderobj.draw(vs, Magick::Color("darkgray"), 0.5, 0.5));
+          d->set_key_image(k, renderobj.draw(vs, im_darkgray, 0.5, 0.5));
         }
         return;
       }
@@ -214,10 +219,10 @@ namespace obs {
 
         if (i->get_current_transition().nr == nr) {
           font_render<render_to_image> renderobj(fontobj, icon1, 0.8, 0.8);
-          d->set_key_image(k, renderobj.draw(vs, Magick::Color("black"), 0.5, 0.5));
+          d->set_key_image(k, renderobj.draw(vs, im_black, 0.5, 0.5));
         } else {
           font_render<render_to_image> renderobj(fontobj, icon2, 0.8, 0.8);
-          d->set_key_image(k, renderobj.draw(vs, Magick::Color("darkgray"), 0.5, 0.5));
+          d->set_key_image(k, renderobj.draw(vs, im_darkgray, 0.5, 0.5));
         }
         return;
       }
