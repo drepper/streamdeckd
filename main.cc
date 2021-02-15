@@ -31,8 +31,7 @@ static_assert(__cpp_range_based_for >= 200907);
 
 namespace {
 
-  // Magick::Image blankimg(SHAREDIR "/blank.png");
-  Magick::Image blankimg("/home/drepper/devel/streamdeckd/blank.png");
+  Magick::Image blankimg(SHAREDIR "/blank.png");
 
 
   std::filesystem::path find_file(const std::string& name)
@@ -200,7 +199,7 @@ namespace {
     }
 
     void show_icon() override {
-      b->show_icon(key);
+      b->show_icon();
     }
 
   private:
@@ -227,9 +226,11 @@ namespace {
     void show_icons();
     void run();
 
-    void nextpage(int) {}
+    void nextpage(unsigned to_page);
   private:
     static unsigned keyidx(unsigned page, unsigned k) { return page * 256 + k; }
+
+    void setkey(unsigned page, unsigned row, unsigned column, const Magick::Image& image);
 
     streamdeck::context ctx;
     streamdeck::device_type* dev = nullptr;
@@ -285,12 +286,9 @@ namespace {
             for (unsigned k = 0; k < d->key_count; ++k) {
               auto row = 1u + k / d->key_cols;
               auto column = 1u + k % d->key_cols;
-              auto keyname = "p"s + std::to_string(pagenr) + "r"s + std::to_string(row) + "c"s + std::to_string(column);
-              if (! page.exists(keyname)) {
-                keyname = "r"s + std::to_string(row) + "c"s + std::to_string(column);
-                if (! page.exists(keyname))
-                  continue;
-              }
+              auto keyname = "r"s + std::to_string(row) + "c"s + std::to_string(column);
+              if (! page.exists(keyname))
+                continue;
 
               unsigned kidx = keyidx(pagenr, k);
 
@@ -348,7 +346,7 @@ namespace {
                     }
                   }
                 } else if (obs && std::string(key["type"]) == "obs") {
-                  if (auto b = obs->parse_key(d.get(), row, column, key); b != nullptr)
+                  if (auto b = obs->parse_key([this](unsigned page, unsigned row, unsigned column, const Magick::Image& image){ setkey(page, row, column, image); }, pagenr, row, column, key); b != nullptr)
                     actions[kidx] = std::make_unique<obsaction>(k, key, *d, b);
                 } else if (std::string(key["type"]) == "nextpage")
                   actions[kidx] = std::make_unique<pageaction>(k, key, *d, (pagenr + 1) % nrpages, *this);
@@ -369,6 +367,14 @@ namespace {
 
     if (dev == nullptr)
       throw std::runtime_error("no device available");
+  }
+
+
+
+  void deck_config::setkey(unsigned page, unsigned row, unsigned column, const Magick::Image& image)
+  {
+    if (page == current_page)
+      dev->set_key_image((row - 1u) * dev->key_cols + (column - 1u), image);
   }
 
 
@@ -399,6 +405,11 @@ namespace {
     }
   }
 
+
+  void deck_config::nextpage(unsigned to_page) {
+    current_page = to_page;
+    show_icons();
+  }
 
 
   void pageaction::call() {

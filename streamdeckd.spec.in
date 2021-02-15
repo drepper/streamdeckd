@@ -1,7 +1,7 @@
 Summary: StreamDeck Control Daemon
 Name: streamdeckd
 Version: @VERSION@
-Release: 2
+Release: 1
 URL: https://github.com/drepper/streamdeckd
 Source: https://github.com/drepper/streamdeckd/archive/streamdeckd-@VERSION@.tar.xz
 License: GPLv2
@@ -50,6 +50,8 @@ mkdir -p ${RPM_BUILD_ROOT}%{_prefix}
 %{_datadir}/icons/hicolor/scalable/apps/streamdeckd.svg
 
 %changelog
+* Mon Feb 15 2021 Ulrich Drepper <drepper@gmail.com> 1.8-1
+- Add support for multiple pages
 * Sun Feb 14 2021 Ulrich Drepper <drepper@gmail.com> 1.7-2
 - Label keys based on OBS scene and transition names
 - Add record/stream keys

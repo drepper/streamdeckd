@@ -98,7 +98,7 @@ To Do
 1. Dimm/turn off lights when session not active (and not rcording?)
 2. When config file changed, reload
 3. GUI for creation of the config file
-4. Support multiple pages
+4. Show controls for sources in scene
 5. Use gresource to package icons in the executable
 6. FTB mode: when pressed, blink red until pressed again
 

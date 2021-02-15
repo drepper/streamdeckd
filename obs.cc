@@ -4,7 +4,6 @@
 #include <iterator>
 #include <filesystem>
 
-#include <Magick++.h>
 #include <openssl/evp.h>
 #include <openssl/sha.h>
 
@@ -43,18 +42,17 @@ namespace obs {
   } // anonymous namespace;
 
 
-  button::button(unsigned nr_, streamdeck::device_type* d_, info* i_, unsigned row_, unsigned column_, std::string& icon1_, std::string& icon2_, keyop_type keyop_)
+  button::button(unsigned nr_, set_key_image_cb setkey_, info* i_, unsigned page_, unsigned row_, unsigned column_, std::string& icon1_, std::string& icon2_, keyop_type keyop_)
 
-  : nr(nr_), d(d_), i(i_), row(row_), column(column_), icon1(make_absolute(icon1_)), icon2(make_absolute(icon2_)), keyop(keyop_)
+  : nr(nr_), setkey(setkey_), i(i_), page(page_), row(row_), column(column_), icon1(make_absolute(icon1_)), icon2(make_absolute(icon2_)), keyop(keyop_)
   {
-    update();
   }
 
 
-  void button::update()
+  void button::show_icon()
   {
     auto icon = &obsicon;
-    auto k = (row - 1) * d->key_cols + column - 1;
+    // auto k = (row - 1) * d->key_cols + column - 1;
 
     if (i->connected) {
       // std::cout << "update connected\n";
@@ -68,18 +66,15 @@ namespace obs {
           icon = active ? &icon1 : &icon2;
         }
         // else std::cout << "scene out of range\n";
-      } else if (keyop == keyop_type::record) {
+      } else if (keyop == keyop_type::record)
         icon = i->is_recording ? &icon1 : &icon2;
-      } else if (keyop == keyop_type::stream) {
+      else if (keyop == keyop_type::stream)
         icon = i->is_streaming ? &icon1 : &icon2;
-      } else {
+      else
         icon = &icon1;
-        // std::cout << "new single icon " << iconname << std::endl;
-      }
     }
-    // else std::cout << "not connected button type " << int(keyop) << std::endl;
 
-    d->set_key_image(k, *icon);
+    setkey(page, row, column, *icon);
   }
 
 
@@ -158,9 +153,9 @@ namespace obs {
   }
 
 
-  void auto_button::update()
+  void auto_button::show_icon()
   {
-    auto k = (row - 1) * d->key_cols + column - 1;
+    // auto k = (row - 1) * d->key_cols + column - 1;
 
     if (i->connected) {
       font_render<render_to_image> renderobj(fontobj, icon1, 0.8, 0.3);
@@ -169,15 +164,15 @@ namespace obs {
         s += ".0";
       else if (s.size() > 3)
         s.erase(3);
-      d->set_key_image(k, renderobj.draw(s, color, std::get<0>(center), std::get<1>(center)));
+      setkey(page, row, column, renderobj.draw(s, color, std::get<0>(center), std::get<1>(center)));
     } else
-      d->set_key_image(k, obsicon);
+      setkey(page, row, column, obsicon);
   }
 
 
-  void scene_button::update()
+  void scene_button::show_icon()
   {
-    auto k = (row - 1) * d->key_cols + column - 1;
+    // auto k = (row - 1) * d->key_cols + column - 1;
 
     if (i->connected) {
       auto it = std::find_if(i->scenes.begin(), i->scenes.end(), [nr = base_type::nr](const auto& e){ return nr == e.second.nr; });
@@ -193,21 +188,21 @@ namespace obs {
 
         if ((keyop == keyop_type::live_scene && i->get_current_scene().nr == nr) || (keyop == keyop_type::preview_scene && i->get_current_preview().nr == nr)) {
           font_render<render_to_image> renderobj(fontobj, icon1, 0.8, 0.8);
-          d->set_key_image(k, renderobj.draw(vs, keyop == keyop_type::live_scene ? im_white : im_black, 0.5, 0.5));
+          setkey(page, row, column, renderobj.draw(vs, keyop == keyop_type::live_scene ? im_white : im_black, 0.5, 0.5));
         } else {
           font_render<render_to_image> renderobj(fontobj, icon2, 0.8, 0.8);
-          d->set_key_image(k, renderobj.draw(vs, im_darkgray, 0.5, 0.5));
+          setkey(page, row, column, renderobj.draw(vs, im_darkgray, 0.5, 0.5));
         }
         return;
       }
     }
-    d->set_key_image(k, keyop == keyop_type::live_scene ? live_unused_icon : preview_unused_icon);
+    setkey(page, row, column, keyop == keyop_type::live_scene ? live_unused_icon : preview_unused_icon);
   }
 
 
-  void transition_button::update()
+  void transition_button::show_icon()
   {
-    auto k = (row - 1) * d->key_cols + column - 1;
+    // auto k = (row - 1) * d->key_cols + column - 1;
 
     if (i->connected) {
       auto it = std::find_if(i->transitions.begin(), i->transitions.end(), [nr = base_type::nr](const auto& e){ return nr == e.second.nr; });
@@ -223,15 +218,15 @@ namespace obs {
 
         if (i->get_current_transition().nr == nr) {
           font_render<render_to_image> renderobj(fontobj, icon1, 0.8, 0.8);
-          d->set_key_image(k, renderobj.draw(vs, im_black, 0.5, 0.5));
+          setkey(page, row, column, renderobj.draw(vs, im_black, 0.5, 0.5));
         } else {
           font_render<render_to_image> renderobj(fontobj, icon2, 0.8, 0.8);
-          d->set_key_image(k, renderobj.draw(vs, im_darkgray, 0.5, 0.5));
+          setkey(page, row, column, renderobj.draw(vs, im_darkgray, 0.5, 0.5));
         }
         return;
       }
     }
-    d->set_key_image(k, obsicon);
+    setkey(page, row, column, icon2);
   }
 
 
@@ -302,19 +297,19 @@ namespace obs {
         break;
       case work_request::work_type::buttons:
         for (auto& b : scene_live_buttons)
-          std::get<1>(b).update();
+          std::get<1>(b).show_icon();
         for (auto& b : scene_preview_buttons)
-          std::get<1>(b).update();
+          std::get<1>(b).show_icon();
         for (auto& b : cut_buttons)
-          b.update();
+          b.show_icon();
         for (auto& b : auto_buttons)
-          b.update();
+          b.show_icon();
         for (auto& b : ftb_buttons)
-          b.update();
+          b.show_icon();
         for (auto& b : transition_buttons)
-          std::get<1>(b).update();
+          std::get<1>(b).show_icon();
         for (auto& b : record_buttons)
-          b.update();
+          b.show_icon();
         break;
       case work_request::work_type::scene:
         {
@@ -329,18 +324,18 @@ namespace obs {
           if (old_live.nr != new_live.nr) {
             for (auto& p : scene_live_buttons)
               if (p.second.nr == old_live.nr || p.second.nr == new_live.nr)
-                p.second.update();
+                p.second.show_icon();
             for (auto& p : scene_preview_buttons)
               if (p.second.nr == old_preview.nr || p.second.nr == new_preview.nr)
-                p.second.update();
+                p.second.show_icon();
           }
           if (old_preview.nr != new_preview.nr) {
             for (auto& p : scene_live_buttons)
               if ((p.second.nr == old_live.nr || p.second.nr == new_live.nr) && p.second.nr != old_live.nr && p.second.nr != new_live.nr)
-                p.second.update();
+                p.second.show_icon();
             for (auto& p : scene_preview_buttons)
               if ((p.second.nr == old_preview.nr || p.second.nr == new_preview.nr) && p.second.nr != old_live.nr && p.second.nr != new_live.nr)
-                p.second.update();
+                p.second.show_icon();
           }
         }
         break;
@@ -354,7 +349,7 @@ namespace obs {
           if (old_preview.nr != new_preview.nr)
             for (auto& p : scene_preview_buttons)
               if (p.second.nr == old_preview.nr || p.second.nr == new_preview.nr)
-                p.second.update();
+                p.second.show_icon();
         }
         break;
       case work_request::work_type::transition:
@@ -364,7 +359,7 @@ namespace obs {
           auto& new_transition = get_current_transition();
           for (auto& p : transition_buttons)
             if (p.second.nr == old_transition.nr || p.second.nr == new_transition.nr)
-              p.second.update();
+              p.second.show_icon();
         }
         break;
       case work_request::work_type::new_scene:
@@ -374,10 +369,10 @@ namespace obs {
           scenes.emplace(std::piecewise_construct, std::forward_as_tuple(name), std::forward_as_tuple(nr, name));
           auto rlive = scene_live_buttons.equal_range(nr);
           for (auto it = rlive.first; it != rlive.second; ++it)
-            it->second.update();
+            it->second.show_icon();
           auto rpreview = scene_preview_buttons.equal_range(nr);
           for (auto it = rpreview.first; it != rpreview.second; ++it)
-            it->second.update();
+            it->second.show_icon();
         }
         break;
       case work_request::work_type::delete_scene:
@@ -391,22 +386,22 @@ namespace obs {
                 --s.second.nr;
             for (auto& b : scene_live_buttons)
               if (b.second.nr >= nr)
-                b.second.update();
+                b.second.show_icon();
             for (auto& b : scene_preview_buttons)
               if (b.second.nr >= nr)
-                b.second.update();
+                b.second.show_icon();
           }
         }
         break;
       case work_request::work_type::recording:
         is_recording = req.nr != 0;
         for (auto& b : record_buttons)
-          b.update();
+          b.show_icon();
         break;
       case work_request::work_type::streaming:
         is_streaming = req.nr != 0;
         for (auto& b : record_buttons)
-          b.update();
+          b.show_icon();
         break;
       case work_request::work_type::sceneschanged:
         scenes.clear();
@@ -419,9 +414,9 @@ namespace obs {
         d["request-type"] = "GetPreviewScene";
         current_preview = obsws::call(d)["name"].asString();
         for (auto& b : scene_live_buttons)
-          b.second.update();
+          b.second.show_icon();
         for (auto& b : scene_preview_buttons)
-          b.second.update();
+          b.second.show_icon();
         break;
       }
     }
@@ -561,7 +556,7 @@ namespace obs {
   }
 
 
-  button* info::parse_key(streamdeck::device_type* d, unsigned row, unsigned column, const libconfig::Setting& config)
+  button* info::parse_key(set_key_image_cb setkey, unsigned page, unsigned row, unsigned column, const libconfig::Setting& config)
   {
     if (! config.exists("function"))
       return nullptr;
@@ -579,25 +574,25 @@ namespace obs {
       if (config.exists("font"))
         config.lookupValue("font", font);
       else
-	font = obsfont;
+      	font = obsfont;
       unsigned nr = 1 + scene_live_buttons.size();
-      return &scene_live_buttons.emplace(nr, scene_button(nr, d, this, row, column, icon1, icon2, keyop_type::live_scene, ftobj, font))->second;
+      return &scene_live_buttons.emplace(nr, scene_button(nr, setkey, this, page, row, column, icon1, icon2, keyop_type::live_scene, ftobj, font))->second;
     } else if (function == "scene-preview") {
       std::string font;
       if (config.exists("font"))
         config.lookupValue("font", font);
       else
-	font = obsfont;
+      	font = obsfont;
       unsigned nr = 1 + scene_preview_buttons.size();
-      return &scene_preview_buttons.emplace(nr, scene_button(nr, d, this, row, column, icon1, icon2, keyop_type::preview_scene, ftobj, font))->second;
+      return &scene_preview_buttons.emplace(nr, scene_button(nr, setkey, this, page, row, column, icon1, icon2, keyop_type::preview_scene, ftobj, font))->second;
     } else if (function == "scene-cut") {
-      return &cut_buttons.emplace_back(0, d, this, row, column, icon1, icon1, keyop_type::cut);
+      return &cut_buttons.emplace_back(0, setkey, this, page, row, column, icon1, icon1, keyop_type::cut);
     } else if (function == "scene-auto") {
       std::string font;
       if (config.exists("font"))
-	config.lookupValue("font", font);
+      	config.lookupValue("font", font);
       else
-	font = obsfont;
+      	font = obsfont;
       std::string color("red");
       std::pair<double,double> center{ 0.5, 0.7 };
       if (config.exists("transition")) {
@@ -616,21 +611,21 @@ namespace obs {
           }
         }
       }
-      return &auto_buttons.emplace_back(0, d, this, row, column, icon1, keyop_type::auto_rate, ftobj, font, color, std::move(center), current_duration_ms);
+      return &auto_buttons.emplace_back(0, setkey, this, page, row, column, icon1, keyop_type::auto_rate, ftobj, font, color, std::move(center), current_duration_ms);
     } else if (function == "scene-ftb") {
-      return &ftb_buttons.emplace_back(0, d, this, row, column, icon1, icon1, keyop_type::ftb);
+      return &ftb_buttons.emplace_back(0, setkey, this, page, row, column, icon1, icon1, keyop_type::ftb);
     } else if (function == "transition") {
       std::string font;
       if (config.exists("font"))
         config.lookupValue("font", font);
       else
-	font = obsfont;
+      	font = obsfont;
       unsigned nr = unsigned(config["nr"]);
-      return &transition_buttons.emplace(nr, transition_button(nr, d, this, row, column, icon1, icon2, keyop_type::transition, ftobj, font))->second;
+      return &transition_buttons.emplace(nr, transition_button(nr, setkey, this, page, row, column, icon1, icon2, keyop_type::transition, ftobj, font))->second;
     } else if (function == "toggle-record") {
-      return &record_buttons.emplace_back(0, d, this, row, column, icon1, icon2, keyop_type::record);
+      return &record_buttons.emplace_back(0, setkey, this, page, row, column, icon1, icon2, keyop_type::record);
     } else if (function == "toggle-stream") {
-      return &record_buttons.emplace_back(0, d, this, row, column, icon1, icon2, keyop_type::stream);
+      return &record_buttons.emplace_back(0, setkey, this, page, row, column, icon1, icon2, keyop_type::stream);
     }
 
     return nullptr;
@@ -679,7 +674,7 @@ namespace obs {
     else if (update_type == "TransitionDurationChanged") {
       current_duration_ms = val["new-duration"].asInt();
       for (auto& b : auto_buttons)
-        b.update();
+        b.show_icon();
     } else if (update_type == "SourceCreated" || update_type == "SourceDestroyed") {
       if (val["sourceType"] == "scene") {
         std::lock_guard<std::mutex> guard(worker_m);

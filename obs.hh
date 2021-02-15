@@ -2,6 +2,7 @@
 #define _OBS_HH 1
 
 #include <condition_variable>
+#include <functional>
 #include <list>
 #include <mutex>
 #include <queue>
@@ -13,6 +14,7 @@
 #include <libconfig.h++>
 #include <streamdeckpp.hh>
 #include <json/json.h>
+#include <Magick++.h>
 
 #include "ftlibrary.hh"
 
@@ -51,21 +53,25 @@ namespace obs {
   };
 
 
+  using set_key_image_cb = std::function<void(unsigned,unsigned,unsigned,const Magick::Image&)>;
+
+
   struct button {
-    button(unsigned nr_, streamdeck::device_type* d_, info* i_, unsigned row_, unsigned column_, std::string& icon1_, std::string& icon2_, keyop_type keyop_);
+    button(unsigned nr_, set_key_image_cb setkey_, info* i_, unsigned page_, unsigned row_, unsigned column_, std::string& icon1_, std::string& icon2_, keyop_type keyop_);
 
     unsigned nr;
-    streamdeck::device_type* d;
+    set_key_image_cb setkey;
     info* i;
-    unsigned row;
-    unsigned column;
+    const unsigned page;
+    const unsigned row;
+    const unsigned column;
     Magick::Image icon1;
     Magick::Image icon2;
     keyop_type keyop;
 
     void call();
-    void show_icon(unsigned key) {}
-    void update();
+    virtual void show_icon();
+    bool visible() const { return true; }
     void initialize();
   };
 
@@ -73,12 +79,12 @@ namespace obs {
   struct auto_button : button {
     using base_type = button;
 
-    auto_button(unsigned nr_, streamdeck::device_type* d_, info* i_, unsigned row_, unsigned column_, std::string& icon1_, keyop_type keyop_, ftlibrary& ftobj, const std::string& font_, const std::string& color_, std::pair<double,double>&& center_, int& duration_ms_)
-    : base_type(nr_, d_, i_, row_, column_, icon1_, icon1_, keyop_), fontobj(ftobj, std::move(font_)), duration_ms(duration_ms_), color(color_), center(std::move(center_))
+    auto_button(unsigned nr_, set_key_image_cb setkey_, info* i_, unsigned page_, unsigned row_, unsigned column_, std::string& icon1_, keyop_type keyop_, ftlibrary& ftobj, const std::string& font_, const std::string& color_, std::pair<double,double>&& center_, int& duration_ms_)
+    : base_type(nr_, setkey_, i_, page_, row_, column_, icon1_, icon1_, keyop_), fontobj(ftobj, std::move(font_)), duration_ms(duration_ms_), color(color_), center(std::move(center_))
     {
     }
 
-    void update();
+    void show_icon() override ;
 
     ftface fontobj;
     int& duration_ms;
@@ -90,12 +96,12 @@ namespace obs {
   struct scene_button : button {
     using base_type = button;
 
-    scene_button(unsigned nr_, streamdeck::device_type* d_, info* i_, unsigned row_, unsigned column_, std::string& icon1_, std::string& icon2_, keyop_type keyop_, ftlibrary& ftobj, const std::string& font_)
-    : base_type(nr_, d_, i_, row_, column_, icon1_, icon2_, keyop_), fontobj(ftobj, std::move(font_))
+    scene_button(unsigned nr_, set_key_image_cb setkey_, info* i_, unsigned page_, unsigned row_, unsigned column_, std::string& icon1_, std::string& icon2_, keyop_type keyop_, ftlibrary& ftobj, const std::string& font_)
+    : base_type(nr_, setkey_, i_, page_, row_, column_, icon1_, icon2_, keyop_), fontobj(ftobj, std::move(font_))
     {
     }
 
-    void update();
+    void show_icon() override;
 
     ftface fontobj;
   };
@@ -104,12 +110,12 @@ namespace obs {
   struct transition_button : button {
     using base_type = button;
 
-    transition_button(unsigned nr_, streamdeck::device_type* d_, info* i_, unsigned row_, unsigned column_, std::string& icon1_, std::string& icon2_, keyop_type keyop_, ftlibrary& ftobj, const std::string& font_)
-    : base_type(nr_, d_, i_, row_, column_, icon1_, icon2_, keyop_), fontobj(ftobj, std::move(font_))
+    transition_button(unsigned nr_, set_key_image_cb setkey_, info* i_, unsigned page_, unsigned row_, unsigned column_, std::string& icon1_, std::string& icon2_, keyop_type keyop_, ftlibrary& ftobj, const std::string& font_)
+    : base_type(nr_, setkey_, i_, page_, row_, column_, icon1_, icon2_, keyop_), fontobj(ftobj, std::move(font_))
     {
     }
 
-    void update();
+    void show_icon() override;
 
     ftface fontobj;
   };
@@ -139,7 +145,7 @@ namespace obs {
     ~info();
 
     void get_session_data();
-    button* parse_key(streamdeck::device_type* d, unsigned row, unsigned column, const libconfig::Setting& config);
+    button* parse_key(set_key_image_cb setkey, unsigned page, unsigned row, unsigned column, const libconfig::Setting& config);
 
     void add_scene(unsigned idx, const char* name);
     unsigned scene_count() const { return scenes.size(); }
