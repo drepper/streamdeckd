@@ -71,13 +71,25 @@ entry specifies what happens when the key is pressed.  Currently three types are
   to specify this.  The next entry is an example of how a list of strings can be used to specify
   more than one key to be sent.
 
+* `obs` which allows to control and monitor OBS through the websocket
+  interface.  The `obs-websockets` plugin must be installed to use this.
+  Various functions are supported as described in a separate section
+  below.
+
+
+OBS Control
+-----------
+
+TBD
+
+
 Notes
 -----
 
 The KeyLight devices are located using mDNS.  This does not always work 100% reliably, the devices
-seem not to send out the required signs of life frequently enough.  In the moment this can only be
-remedied by restarting the daemon.
-
+seem not to send out the required signs of life frequently enough.  The
+daemon tries to find the device a few times but if this fails the only
+remedy is to restart the daemon.
 
 
 To Do
@@ -87,6 +99,8 @@ To Do
 2. When config file changed, reload
 3. GUI for creation of the config file
 4. Support multiple pages
+5. Use gresource to package icons in the executable
+6. FTB mode: when pressed, blink red until pressed again
 
 
 Author: Ulrich Drepper <drepper@gmail.com>

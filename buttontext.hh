@@ -6,7 +6,7 @@
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
-#include "Magick++.h"
+#include <Magick++.h>
 
 
 struct render_to_image {

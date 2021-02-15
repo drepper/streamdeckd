@@ -4,6 +4,7 @@
 #include <iterator>
 #include <filesystem>
 
+#include <Magick++.h>
 #include <openssl/evp.h>
 #include <openssl/sha.h>
 
