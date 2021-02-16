@@ -171,9 +171,9 @@ namespace obs {
       preview = 1u << 1,
       cut = 1u << 2,
       auto_ = 1u << 3,
-      ftb = 1u << 5,
-      transition = 1u << 6,
-      record = 1u << 7,
+      ftb = 1u << 4,
+      transition = 1u << 5,
+      record = 1u << 6,
 
       all = live | preview | cut | auto_ | ftb | transition | record
     };
@@ -225,16 +225,22 @@ namespace obs {
   };
 
 
-  inline info::button_class operator|(info::button_class l, info::button_class r)
+  inline constexpr info::button_class operator|(info::button_class l, info::button_class r)
   {
     using int_type = std::underlying_type_t<info::button_class>;
     return info::button_class(int_type(l) | int_type(r));
   }
 
-  inline info::button_class operator&(info::button_class l, info::button_class r)
+  inline constexpr info::button_class operator&(info::button_class l, info::button_class r)
   {
     using int_type = std::underlying_type_t<info::button_class>;
     return info::button_class(int_type(l) & int_type(r));
+  }
+
+  inline consteval info::button_class operator^(info::button_class l, info::button_class r)
+  {
+    using int_type = std::underlying_type_t<info::button_class>;
+    return info::button_class(int_type(l) ^ int_type(r));
   }
 
 } // namespace obs

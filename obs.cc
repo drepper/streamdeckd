@@ -304,6 +304,7 @@ namespace obs {
     while (! terminate) {
       auto req = get_request();
 
+      Json::Value batch;
       Json::Value d;
       switch(req.type) {
       case work_request::work_type::none:
@@ -408,11 +409,19 @@ namespace obs {
         scenes.clear();
         for (auto& s : req.names)
           scenes.emplace(std::piecewise_construct, std::forward_as_tuple(s), std::forward_as_tuple(1 + scenes.size(), s));
+        batch["request-type"] = "ExecuteBatch";
         d["request-type"] = "GetCurrentScene";
-        current_scene = obsws::call(d)["name"].asString();
+        batch["requests"].append(d);
         d.clear();
         d["request-type"] = "GetPreviewScene";
-        current_preview = obsws::call(d)["name"].asString();
+        batch["requests"].append(d);
+        std::cout << "batch = " << batch << std::endl;
+        if (auto res = obsws::call(batch); res["status"] == "ok") {
+          if (res["results"][0]["status"] == "ok")
+            current_scene = res["results"][0]["name"].asString();
+          if (res["results"][1]["status"] == "ok")
+            current_preview = res["results"][1]["name"].asString();
+        }
         button_update(button_class::live | button_class::preview);
         break;
       case work_request::work_type::studiomode:
@@ -421,7 +430,7 @@ namespace obs {
           d["request-type"] = "GetPreviewScene";
           current_preview = obsws::call(d)["name"].asString();
         }
-        button_update(button_class::preview | button_class::cut | button_class::auto_ | button_class::ftb | button_class::transition);
+        button_update(button_class::all ^ button_class::live ^ button_class::record);
         break;
       }
     }
