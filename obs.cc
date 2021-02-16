@@ -41,7 +41,7 @@ namespace obs {
 
     if (i->connected) {
       // std::cout << "update connected\n";
-      if (keyop == keyop_type::live_scene || keyop == keyop_type::preview_scene) {
+      if (i->studio_mode && (keyop == keyop_type::live_scene || keyop == keyop_type::preview_scene)) {
         if (nr <= i->scene_count()) {
           bool active;
           if (keyop == keyop_type::live_scene)
@@ -55,7 +55,7 @@ namespace obs {
         icon = i->is_recording ? &icon1 : &icon2;
       else if (keyop == keyop_type::stream)
         icon = i->is_streaming ? &icon1 : &icon2;
-      else
+      else if (i->studio_mode)
         icon = &icon1;
     }
 
@@ -66,6 +66,9 @@ namespace obs {
   void button::call()
   {
     if (! i->connected)
+      return;
+
+    if (! i->studio_mode && keyop != keyop_type::live_scene && keyop != keyop_type::record && keyop != keyop_type::stream)
       return;
 
     Json::Value batch;
@@ -140,7 +143,7 @@ namespace obs {
 
   void auto_button::show_icon()
   {
-    if (i->connected) {
+    if (i->connected && i->studio_mode) {
       font_render<render_to_image> renderobj(fontobj, icon1, 0.8, 0.3);
       auto s = std::to_string(duration_ms / 1000.0);
       if (s.size() == 1)
@@ -155,7 +158,7 @@ namespace obs {
 
   void scene_button::show_icon()
   {
-    if (i->connected) {
+    if (i->connected && (keyop != keyop_type::preview_scene || i->studio_mode)) {
       auto it = std::find_if(i->scenes.begin(), i->scenes.end(), [nr = base_type::nr](const auto& e){ return nr == e.second.nr; });
       if (it != i->scenes.end()) {
         auto name = it->second.name;
@@ -177,35 +180,38 @@ namespace obs {
         return;
       }
     }
-    setkey(page, row, column, keyop == keyop_type::live_scene ? i->live_unused_icon : i->preview_unused_icon);
+    setkey(page, row, column, keyop == keyop_type::live_scene ? i->live_unused_icon : (i->studio_mode ? i->preview_unused_icon : i->obsicon));
   }
 
 
   void transition_button::show_icon()
   {
-    if (i->connected) {
-      auto it = std::find_if(i->transitions.begin(), i->transitions.end(), [nr = base_type::nr](const auto& e){ return nr == e.second.nr; });
-      if (it != i->transitions.end()) {
-        auto name = it->second.name;
-        std::vector<std::string> vs;
-        if (name.size() <= 5)
-          vs.emplace_back(name);
-        else {
-          std::istringstream iss(name);
-          vs = std::vector(std::istream_iterator<std::string>{iss}, std::istream_iterator<std::string>());
-        }
+    if (i->studio_mode) {
+      if (i->connected) {
+        auto it = std::find_if(i->transitions.begin(), i->transitions.end(), [nr = base_type::nr](const auto& e){ return nr == e.second.nr; });
+        if (it != i->transitions.end()) {
+          auto name = it->second.name;
+          std::vector<std::string> vs;
+          if (name.size() <= 5)
+            vs.emplace_back(name);
+          else {
+            std::istringstream iss(name);
+            vs = std::vector(std::istream_iterator<std::string>{iss}, std::istream_iterator<std::string>());
+          }
 
-        if (i->get_current_transition().nr == nr) {
-          font_render<render_to_image> renderobj(fontobj, icon1, 0.8, 0.8);
-          setkey(page, row, column, renderobj.draw(vs, i->im_black, 0.5, 0.5));
-        } else {
-          font_render<render_to_image> renderobj(fontobj, icon2, 0.8, 0.8);
-          setkey(page, row, column, renderobj.draw(vs, i->im_darkgray, 0.5, 0.5));
+          if (i->get_current_transition().nr == nr) {
+            font_render<render_to_image> renderobj(fontobj, icon1, 0.8, 0.8);
+            setkey(page, row, column, renderobj.draw(vs, i->im_black, 0.5, 0.5));
+          } else {
+            font_render<render_to_image> renderobj(fontobj, icon2, 0.8, 0.8);
+            setkey(page, row, column, renderobj.draw(vs, i->im_darkgray, 0.5, 0.5));
+          }
+          return;
         }
-        return;
       }
-    }
-    setkey(page, row, column, icon2);
+      setkey(page, row, column, icon2);
+    } else
+      setkey(page, row, column, i->obsicon);
   }
 
 
@@ -266,6 +272,7 @@ namespace obs {
     while (! terminate) {
       auto req = get_request();
 
+      Json::Value d;
       switch(req.type) {
       case work_request::work_type::none:
         break;
@@ -384,7 +391,6 @@ namespace obs {
         scenes.clear();
         for (auto& s : req.names)
           scenes.emplace(std::piecewise_construct, std::forward_as_tuple(s), std::forward_as_tuple(1 + scenes.size(), s));
-        Json::Value d;
         d["request-type"] = "GetCurrentScene";
         current_scene = obsws::call(d)["name"].asString();
         d.clear();
@@ -394,6 +400,23 @@ namespace obs {
           b.second.show_icon();
         for (auto& b : scene_preview_buttons)
           b.second.show_icon();
+        break;
+      case work_request::work_type::studiomode:
+        studio_mode = req.nr;
+        if (studio_mode) {
+          d["request-type"] = "GetPreviewScene";
+          current_preview = obsws::call(d)["name"].asString();
+        }
+        for (auto& b : scene_preview_buttons)
+          std::get<1>(b).show_icon();
+        for (auto& b : cut_buttons)
+          b.show_icon();
+        for (auto& b : auto_buttons)
+          b.show_icon();
+        for (auto& b : ftb_buttons)
+          b.show_icon();
+        for (auto& b : transition_buttons)
+          std::get<1>(b).show_icon();
         break;
       }
     }
@@ -442,7 +465,7 @@ namespace obs {
     batch["request-type"] = "ExecuteBatch";
 
     d.clear();
-    d["request-type"] = "EnableStudioMode";
+    d["request-type"] = "GetStudioModeStatus";
     batch["requests"].append(d);
 
     scenes.clear();
@@ -474,6 +497,8 @@ namespace obs {
     resp = obsws::call(batch);
     if (! resp.isMember("status") || resp["status"] != "ok")
       return;
+
+    studio_mode = resp["results"][0]["status"] == "ok" && resp["results"][0]["studio-mode"].asBool();
 
     auto& scenelist = resp["results"][1];
     if (scenelist.isMember("status") && scenelist["status"] == "ok") {
@@ -703,6 +728,10 @@ namespace obs {
         newscenes.emplace_back(s["name"].asString());
       std::lock_guard<std::mutex> guard(worker_m);
       worker_queue.emplace(work_request::work_type::sceneschanged, 0, newscenes);
+      worker_cv.notify_all();
+    } else if (update_type == "StudioModeSwitched") {
+      std::lock_guard<std::mutex> guard(worker_m);
+      worker_queue.emplace(work_request::work_type::studiomode, val["new-state"].asBool());
       worker_cv.notify_all();
     } else if (log_unknown_events)
       std::cout << "info::callback unhandled event = " << val << std::endl;

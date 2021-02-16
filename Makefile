@@ -1,4 +1,4 @@
-VERSION = 2.0
+VERSION = 2.1
 CC = gcc $(CSTD)
 CXX = g++ $(CXXSTD)
 INSTALL = install

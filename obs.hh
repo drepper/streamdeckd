@@ -134,6 +134,7 @@ namespace obs {
         recording,
         streaming,
         sceneschanged,
+        studiomode,
     } type;
     unsigned nr = 0;
     std::vector<std::string> names;
@@ -177,6 +178,7 @@ namespace obs {
 
     bool log_unknown_events = false;
 
+    bool studio_mode = false;
     bool is_recording = false;
     bool is_streaming = false;
 

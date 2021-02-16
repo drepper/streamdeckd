@@ -106,7 +106,10 @@ All actions except `execute` and `key` have default icons used for the
 graphics associated with them.  If wanted they can be overwritten by
 providing either an `icon` entry or `icon1` and `icon2` entries.  The
 latter is needed if the button has two different displays, depending on
-the state (e.g., KeyLight on or off).
+the state (e.g., KeyLight on or off).  If the icon file names are not
+absolute path names the file is looked-up first in the internal
+resources, then the `Pictures` subdirectory in the user's home directory,
+and finally in the `/usr/share/pixmaps` directory.
 
 
 OBS Control
