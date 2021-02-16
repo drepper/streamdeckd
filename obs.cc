@@ -10,6 +10,12 @@
 #include "obsws.hh"
 #include "buttontext.hh"
 
+using namespace std::string_literals;
+
+
+// in main.cc
+extern Magick::Image find_image(const std::filesystem::path& path);
+
 
 namespace obs {
 
@@ -20,39 +26,18 @@ namespace obs {
     std::string password("");
     std::string log("");
 
-    std::string obsfont("Arial");
-
-    Magick::Color im_black("black");
-    Magick::Color im_white("white");
-    Magick::Color im_darkgray("darkgray");
-
-
-    Magick::Image obsicon(SHAREDIR "/obs.png");
-    Magick::Image live_unused_icon(SHAREDIR "/scene_live_unused.png");
-    Magick::Image preview_unused_icon(SHAREDIR "/scene_preview_unused.png");
-
-
-    auto make_absolute(std::filesystem::path&& path)
-    {
-      if (path.is_relative())
-        path = std::filesystem::path(SHAREDIR) / path;
-      return path;
-    }
-
   } // anonymous namespace;
 
 
   button::button(unsigned nr_, set_key_image_cb setkey_, info* i_, unsigned page_, unsigned row_, unsigned column_, std::string& icon1_, std::string& icon2_, keyop_type keyop_)
-
-  : nr(nr_), setkey(setkey_), i(i_), page(page_), row(row_), column(column_), icon1(make_absolute(icon1_)), icon2(make_absolute(icon2_)), keyop(keyop_)
+  : nr(nr_), setkey(setkey_), i(i_), page(page_), row(row_), column(column_), icon1(find_image(icon1_)), icon2(find_image(icon2_)), keyop(keyop_)
   {
   }
 
 
   void button::show_icon()
   {
-    auto icon = &obsicon;
-    // auto k = (row - 1) * d->key_cols + column - 1;
+    auto icon = &i->obsicon;
 
     if (i->connected) {
       // std::cout << "update connected\n";
@@ -155,8 +140,6 @@ namespace obs {
 
   void auto_button::show_icon()
   {
-    // auto k = (row - 1) * d->key_cols + column - 1;
-
     if (i->connected) {
       font_render<render_to_image> renderobj(fontobj, icon1, 0.8, 0.3);
       auto s = std::to_string(duration_ms / 1000.0);
@@ -166,14 +149,12 @@ namespace obs {
         s.erase(3);
       setkey(page, row, column, renderobj.draw(s, color, std::get<0>(center), std::get<1>(center)));
     } else
-      setkey(page, row, column, obsicon);
+      setkey(page, row, column, i->obsicon);
   }
 
 
   void scene_button::show_icon()
   {
-    // auto k = (row - 1) * d->key_cols + column - 1;
-
     if (i->connected) {
       auto it = std::find_if(i->scenes.begin(), i->scenes.end(), [nr = base_type::nr](const auto& e){ return nr == e.second.nr; });
       if (it != i->scenes.end()) {
@@ -188,22 +169,20 @@ namespace obs {
 
         if ((keyop == keyop_type::live_scene && i->get_current_scene().nr == nr) || (keyop == keyop_type::preview_scene && i->get_current_preview().nr == nr)) {
           font_render<render_to_image> renderobj(fontobj, icon1, 0.8, 0.8);
-          setkey(page, row, column, renderobj.draw(vs, keyop == keyop_type::live_scene ? im_white : im_black, 0.5, 0.5));
+          setkey(page, row, column, renderobj.draw(vs, keyop == keyop_type::live_scene ? i->im_white : i->im_black, 0.5, 0.5));
         } else {
           font_render<render_to_image> renderobj(fontobj, icon2, 0.8, 0.8);
-          setkey(page, row, column, renderobj.draw(vs, im_darkgray, 0.5, 0.5));
+          setkey(page, row, column, renderobj.draw(vs, i->im_darkgray, 0.5, 0.5));
         }
         return;
       }
     }
-    setkey(page, row, column, keyop == keyop_type::live_scene ? live_unused_icon : preview_unused_icon);
+    setkey(page, row, column, keyop == keyop_type::live_scene ? i->live_unused_icon : i->preview_unused_icon);
   }
 
 
   void transition_button::show_icon()
   {
-    // auto k = (row - 1) * d->key_cols + column - 1;
-
     if (i->connected) {
       auto it = std::find_if(i->transitions.begin(), i->transitions.end(), [nr = base_type::nr](const auto& e){ return nr == e.second.nr; });
       if (it != i->transitions.end()) {
@@ -218,10 +197,10 @@ namespace obs {
 
         if (i->get_current_transition().nr == nr) {
           font_render<render_to_image> renderobj(fontobj, icon1, 0.8, 0.8);
-          setkey(page, row, column, renderobj.draw(vs, im_black, 0.5, 0.5));
+          setkey(page, row, column, renderobj.draw(vs, i->im_black, 0.5, 0.5));
         } else {
           font_render<render_to_image> renderobj(fontobj, icon2, 0.8, 0.8);
-          setkey(page, row, column, renderobj.draw(vs, im_darkgray, 0.5, 0.5));
+          setkey(page, row, column, renderobj.draw(vs, i->im_darkgray, 0.5, 0.5));
         }
         return;
       }
@@ -231,7 +210,9 @@ namespace obs {
 
 
   info::info(const libconfig::Setting& config, ftlibrary& ftobj_)
-  : ftobj(ftobj_)
+  : ftobj(ftobj_), im_black("black"), im_white("white"), im_darkgray("darkgray"),
+    obsicon(find_image("obs.png")), live_unused_icon(find_image("scene_live_unused.png")), preview_unused_icon(find_image("scene_preview_unused.png")),
+    obsfont(config.exists("font") ? std::string(config["font"]) : "Arial"s)
   {
     if (config.exists("server"))
       server = std::string(config["server"]);
@@ -253,10 +234,6 @@ namespace obs {
       log = "";
       log_unknown_events = false;
     }
-    if (config.exists("font"))
-      obsfont = std::string(config["font"]);
-    else
-      obsfont = "Arial";
 
     obsws::config([this](const Json::Value& val){ callback(val); }, [this](bool connected){ connection_update(connected); }, server.c_str(), port, log.c_str());
 
@@ -570,24 +547,38 @@ namespace obs {
     else
       icon2 = icon1;
     if (function == "scene-live"){
+      if (icon1.empty()) {
+        icon1 = "scene_live.png";
+        if (icon2.empty())
+          icon2 = "scene_live_off.png";
+      }
       std::string font;
       if (config.exists("font"))
         config.lookupValue("font", font);
       else
       	font = obsfont;
-      unsigned nr = 1 + scene_live_buttons.size();
+      unsigned nr = 1u + scene_live_buttons.size();
       return &scene_live_buttons.emplace(nr, scene_button(nr, setkey, this, page, row, column, icon1, icon2, keyop_type::live_scene, ftobj, font))->second;
     } else if (function == "scene-preview") {
+      if (icon1.empty()) {
+        icon1 = "scene_preview.png";
+        if (icon2.empty())
+          icon2 = "scene_preview_off.png";
+      }
       std::string font;
       if (config.exists("font"))
         config.lookupValue("font", font);
       else
       	font = obsfont;
-      unsigned nr = 1 + scene_preview_buttons.size();
+      unsigned nr = 1u + scene_preview_buttons.size();
       return &scene_preview_buttons.emplace(nr, scene_button(nr, setkey, this, page, row, column, icon1, icon2, keyop_type::preview_scene, ftobj, font))->second;
     } else if (function == "scene-cut") {
+      if (icon1.empty())
+        icon1 = "cut.png";
       return &cut_buttons.emplace_back(0, setkey, this, page, row, column, icon1, icon1, keyop_type::cut);
     } else if (function == "scene-auto") {
+      if (icon1.empty())
+        icon1 = "auto.png";
       std::string font;
       if (config.exists("font"))
       	config.lookupValue("font", font);
@@ -613,18 +604,35 @@ namespace obs {
       }
       return &auto_buttons.emplace_back(0, setkey, this, page, row, column, icon1, keyop_type::auto_rate, ftobj, font, color, std::move(center), current_duration_ms);
     } else if (function == "scene-ftb") {
+      if (icon1.empty())
+        icon1 = icon2 = "ftb.png";
       return &ftb_buttons.emplace_back(0, setkey, this, page, row, column, icon1, icon1, keyop_type::ftb);
     } else if (function == "transition") {
+      if (icon1.empty()) {
+        icon1 = "transition.png";
+        if (icon2.empty())
+          icon2 = "transition_off.png";
+      }
       std::string font;
       if (config.exists("font"))
         config.lookupValue("font", font);
       else
       	font = obsfont;
-      unsigned nr = unsigned(config["nr"]);
+      unsigned nr = 1u + transition_buttons.size();
       return &transition_buttons.emplace(nr, transition_button(nr, setkey, this, page, row, column, icon1, icon2, keyop_type::transition, ftobj, font))->second;
     } else if (function == "toggle-record") {
+      if (icon1.empty()) {
+        icon1 = "record.png";
+        if (icon2.empty())
+          icon2 = "record_off.png";
+      }
       return &record_buttons.emplace_back(0, setkey, this, page, row, column, icon1, icon2, keyop_type::record);
     } else if (function == "toggle-stream") {
+      if (icon1.empty()) {
+        icon1 = "stream.png";
+        if (icon2.empty())
+          icon2 = "stream_off.png";
+      }
       return &record_buttons.emplace_back(0, setkey, this, page, row, column, icon1, icon2, keyop_type::stream);
     }
 

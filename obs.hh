@@ -195,6 +195,16 @@ namespace obs {
     std::list<button> ftb_buttons;
     std::unordered_multimap<unsigned,transition_button> transition_buttons;
     std::list<button> record_buttons;
+
+    const Magick::Color im_black;
+    const Magick::Color im_white;
+    const Magick::Color im_darkgray;
+
+    const Magick::Image obsicon;
+    const Magick::Image live_unused_icon;
+    const Magick::Image preview_unused_icon;
+
+    const std::string obsfont;
   };
 
 } // namespace obs

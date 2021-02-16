@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include <libconfig.h++>
+#include <giomm.h>
 extern "C" {
   // libxdo is not prepared for C++ and the X headers define stray macros.
 #include <xdo.h>
@@ -15,6 +16,9 @@ extern "C" {
 
 #include "obs.hh"
 #include "ftlibrary.hh"
+extern "C" {
+#include "resources.h"
+}
 
 // XYZ Debug
 // #include <iostream>
@@ -31,27 +35,64 @@ static_assert(__cpp_range_based_for >= 200907);
 
 namespace {
 
-  Magick::Image blankimg(SHAREDIR "/blank.png");
+  const std::filesystem::path resource_ns("/org/akkadia/streamdeckd");
 
 
-  std::filesystem::path find_file(const std::string& name)
+  std::filesystem::path get_homedir()
   {
-    auto path = std::filesystem::path(name);
-    if (path.is_relative())
-      path = std::filesystem::path(SHAREDIR) / path;
-    return path;
+    auto homedir = getenv("HOME");
+    if (homedir != nullptr && *homedir != '\0')
+      return homedir;
+
+    auto pwd = getpwuid(getuid());
+    if (pwd != nullptr)
+      return pwd->pw_dir;
+
+    // Better than nothing
+    return std::filesystem::current_path();
   }
 
+} // anonymous namespace
+
+
+
+Magick::Image find_image(const std::filesystem::path& path)
+{
+  if (! path.is_relative())
+    return Magick::Image(path);
+
+  try {
+    auto data = Gio::Resource::lookup_data_global(resource_ns / path);
+    gsize size;
+    auto ptr = static_cast<const char*>(data->get_data(size));
+    return Magick::Image(Magick::Blob(ptr, size));
+  }
+  catch (Glib::Error&) {
+  }
+  try {
+    return Magick::Image(get_homedir() / "Pictures" / path);
+  }
+  catch (Magick::ErrorBlob&) {
+  }
+  return Magick::Image(std::filesystem::path("/usr/share/pixmaps") / path);
+}
+
+
+namespace {
 
   struct deck_config;
 
 
   struct action {
-    action(unsigned k, const libconfig::Setting& setting, streamdeck::device_type& dev_) : key(k), dev(dev_)
+    action(unsigned k, const libconfig::Setting& setting, streamdeck::device_type& dev_, const char* default_icon = nullptr) : key(k), dev(dev_)
     {
       std::string iconname;
-      if (setting.lookupValue("icon", iconname))
-        icon1 = Magick::Image(find_file(iconname).string());
+      if (! setting.lookupValue("icon", iconname)) {
+        if (default_icon == nullptr)
+          return;
+        iconname = default_icon;
+      }
+      icon1 = find_image(iconname);
     }
     virtual ~action() { }
 
@@ -81,15 +122,17 @@ namespace {
           ++nkeylights;
 
       std::string icon1name;
-      if (setting.lookupValue("icon_on", icon1name)) {
-        icon1 = Magick::Image(find_file(icon1name).string());
+      if (! setting.lookupValue("icon_on", icon1name))
+        icon1name = "bulb_on.png";
+      icon1 = find_image(icon1name);
 
+      if (nkeylights == 1) {
         std::string icon2name;
-        if (nkeylights == 1 && setting.lookupValue("icon_off", icon2name))
-          icon2 = Magick::Image(find_file(icon2name).string());
-        else
-          icon2 = icon1;
-      }
+        if (! setting.lookupValue("icon_off", icon2name))
+          icon2name = "bulb_off.png";
+        icon2 = find_image(icon2name);
+      } else
+        icon2 = icon1;
     }
 
     void call() override
@@ -119,7 +162,10 @@ namespace {
   struct keylight_color final : public action {
     using base_type = action;
 
-    keylight_color(unsigned k, const libconfig::Setting& setting, streamdeck::device_type& dev_, bool has_serial, std::string& serial_, keylightpp::device_list_type& keylights_, int inc_) : base_type(k, setting, dev_), serial(has_serial ? serial_ : ""), keylights(keylights_), inc(inc_) { }
+    keylight_color(unsigned k, const libconfig::Setting& setting, streamdeck::device_type& dev_, bool has_serial, std::string& serial_, keylightpp::device_list_type& keylights_, int inc_)
+    : base_type(k, setting, dev_, inc_ >= 0 ? "color+.png" : "color-.png"), serial(has_serial ? serial_ : ""), keylights(keylights_), inc(inc_)
+    {
+    }
 
     void call() override {
       for (auto& d : keylights)
@@ -140,7 +186,10 @@ namespace {
   struct keylight_brightness final : public action {
     using base_type = action;
 
-    keylight_brightness(unsigned k, const libconfig::Setting& setting, streamdeck::device_type& dev_, bool has_serial, std::string& serial_, keylightpp::device_list_type& keylights_, int inc_) : base_type(k, setting, dev_), serial(has_serial ? serial_ : ""), keylights(keylights_), inc(inc_) { }
+    keylight_brightness(unsigned k, const libconfig::Setting& setting, streamdeck::device_type& dev_, bool has_serial, std::string& serial_, keylightpp::device_list_type& keylights_, int inc_)
+    : base_type(k, setting, dev_, inc_ >= 0 ? "brightness+.png" : "brightness-.png"), serial(has_serial ? serial_ : ""), keylights(keylights_), inc(inc_)
+    {
+    }
 
     void call() override {
       for (auto& d : keylights)
@@ -210,7 +259,13 @@ namespace {
   struct pageaction final : public action {
     using base_type = action;
 
-    pageaction(unsigned k, const libconfig::Setting& setting, streamdeck::device_type& dev_, unsigned to_page_, deck_config& deck_) : base_type(k, setting, dev_), to_page(to_page_), deck(deck_) {}
+    enum struct direction {
+      left,
+      right,
+    };
+
+    pageaction(unsigned k, const libconfig::Setting& setting, streamdeck::device_type& dev_, unsigned to_page_, direction dir, deck_config& deck_)
+    : base_type(k, setting, dev_, dir == direction::left ? "left-arrow.png" : "right-arrow.png"), to_page(to_page_), deck(deck_) {}
 
     void call() override;
 
@@ -243,10 +298,12 @@ namespace {
     std::map<unsigned,std::unique_ptr<action>> actions;
     std::unique_ptr<obs::info> obs;
     ftlibrary ftobj;
+    Magick::Image blankimg;
   };
 
 
   deck_config::deck_config(const std::filesystem::path& conffile)
+  : blankimg(find_image("blank.png"))
   {
     libconfig::Config config;
     config.readFile(conffile.c_str());
@@ -349,9 +406,9 @@ namespace {
                   if (auto b = obs->parse_key([this](unsigned page, unsigned row, unsigned column, const Magick::Image& image){ setkey(page, row, column, image); }, pagenr, row, column, key); b != nullptr)
                     actions[kidx] = std::make_unique<obsaction>(k, key, *d, b);
                 } else if (std::string(key["type"]) == "nextpage")
-                  actions[kidx] = std::make_unique<pageaction>(k, key, *d, (pagenr + 1) % nrpages, *this);
+                  actions[kidx] = std::make_unique<pageaction>(k, key, *d, (pagenr + 1) % nrpages, pageaction::direction::right, *this);
                 else if (std::string(key["type"]) == "prevpage")
-                  actions[kidx] = std::make_unique<pageaction>(k, key, *d, (pagenr - 1 + nrpages) % nrpages, *this);
+                  actions[kidx] = std::make_unique<pageaction>(k, key, *d, (pagenr - 1 + nrpages) % nrpages, pageaction::direction::left, *this);
               }
             }
           }
@@ -393,6 +450,8 @@ namespace {
 
   void deck_config::run()
   {
+    show_icons();
+
     while (true) {
       auto ss = dev->read();
       unsigned k = 0;
@@ -421,27 +480,11 @@ namespace {
 
 int main(int argc, char* argv[])
 {
-  std::filesystem::path conffile;
+  auto resource_bundle = Glib::wrap(resources_get_resource());
+  resource_bundle->register_global();
 
-  if (argc == 2)
-    conffile = argv[1];
-  else {
-    const char* homedir = getenv("HOME");
-    if (homedir == nullptr || *homedir == '\0') {
-      auto pwd = getpwuid(getuid());
-      if (pwd != nullptr)
-        homedir = pwd->pw_dir;
-      else
-        conffile = std::filesystem::current_path();
-    } else
-      conffile = std::filesystem::path(homedir);
-
-    conffile /= ".config/streamdeckd.conf";
-  }
-
+  auto conffile = argc == 2 ? std::filesystem::path(argv[1]) : (get_homedir() / ".config/streamdeckd.conf");
   deck_config deck(conffile);
-
-  deck.show_icons();
 
   deck.run();
 }

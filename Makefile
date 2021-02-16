@@ -1,5 +1,5 @@
-VERSION = 1.8
-
+VERSION = 2.0
+CC = gcc $(CSTD)
 CXX = g++ $(CXXSTD)
 INSTALL = install
 LN_FS = ln -fs
@@ -11,7 +11,9 @@ RPMBUILD = rpmbuild
 PKG_CONFIG = pkg-config
 INKSCAPE = inkscape
 
+CSTD = -std=gnu17
 CXXSTD = -std=gnu++20
+CFLAGS = $(OPTS) $(DEBUG) $(CFLAGS-$@) $(WARN)
 CXXFLAGS = $(OPTS) $(DEBUG) $(CXXFLAGS-$@) $(WARN)
 CPPFLAGS = $(INCLUDES) $(DEFINES)
 LDFLAGS = $(LDFLAGS-$@)
@@ -26,13 +28,12 @@ LIBS = $(shell $(PKG_CONFIG) --libs $(DEPPKGS)) -lcpprest -lxdo -lpthread
 
 prefix = /usr
 bindir = $(prefix)/bin
-sharedir = $(prefix)/share/streamdeckd-$(VERSION)
 
 IFACEPKGS = 
-DEPPKGS = freetype2 fontconfig Magick++ libutf8proc libconfig++ keylightpp streamdeckpp libcrypto jsoncpp uuid libwebsockets
+DEPPKGS = freetype2 fontconfig Magick++ libutf8proc libconfig++ keylightpp streamdeckpp libcrypto jsoncpp uuid libwebsockets giomm-2.4
 ALLPKGS = $(IFACEPKGS) $(DEPPKGS)
 
-OBJS = main.o obs.o obsws.o ftlibrary.o buttontext.o
+OBJS = main.o obs.o obsws.o ftlibrary.o buttontext.o resources.o
 
 SVGS = brightness+.svg brightness-.svg color+.svg color-.svg ftb.svg obs.svg \
        scene_live.svg scene_live_off.svg scene_preview.svg scene_preview_off.svg \
@@ -41,14 +42,22 @@ SVGS = brightness+.svg brightness-.svg color+.svg color-.svg ftb.svg obs.svg \
        right-arrow.svg left-arrow.svg
 PNGS = $(SVGS:.svg=.png) bulb_on.png bulb_off.png bluejeans.png blank.png
 
-DEFINES-main.o = -DSHAREDIR=\"$(sharedir)\"
-DEFINES-obs.o = -DSHAREDIR=\"$(sharedir)\"
-
 
 all: streamdeckd
 
 streamdeckd: $(OBJS)
 	$(CXX) $(LDFLAGS) -o $@ $^ $(LIBS)
+
+resources.xml: Makefile
+	@echo '<gresources><gresource prefix="/org/akkadia/streamdeckd/">' > $@-tmp
+	@for f in $(PNGS); do printf '  <file>%s</file>\n' "$$f" >> $@-tmp; done
+	@echo '</gresource></gresources>' >> $@-tmp
+	$(MV_F) $@-tmp $@
+
+resources.c: resources.xml $(PNGS)
+	glib-compile-resources --generate-source $<
+resources.h: resources.xml $(PNGS)
+	glib-compile-resources --generate-header $<
 
 $(SVGS:.svg=.png): %.png: %.svg
 	$(INKSCAPE) --export-type=png -o $@ $^
@@ -57,19 +66,16 @@ streamdeckd.spec streamdeckd.desktop: %: %.in Makefile
 	$(SED) 's/@VERSION@/$(VERSION)/;s|@PREFIX@|$(prefix)|' $< > $@-tmp
 	$(MV_F) $@-tmp $@
 
-main.o: obs.hh ftlibrary.hh buttontext.hh Makefile
-obs.o: obs.hh obsws.hh buttontext.hh ftlibrary.hh Makefile
+main.o: obs.hh ftlibrary.hh buttontext.hh resources.h
+obs.o: obs.hh obsws.hh buttontext.hh ftlibrary.hh
 obsws.o: obsws.hh
 ftlibrary.o: ftlibrary.hh
 buttontext.o: buttontext.hh
 
 pngs: $(SVGS:.svg=.png)
 
-install: streamdeckd streamdeckd.desktop $(PNGS)
+install: streamdeckd streamdeckd.desktop
 	$(INSTALL) -D -c -m 755 streamdeckd $(DESTDIR)$(bindir)/streamdeckd
-	for p in $(PNGS); do \
-	  $(INSTALL) -D -c -m 644 $$p $(DESTDIR)$(sharedir)/$$p; \
-	done
 	$(INSTALL) -D -c -m 644 streamdeckd.desktop $(DESTDIR)$(prefix)/share/applications/streamdeckd.desktop
 	$(INSTALL) -D -c -m 644 streamdeckd.svg $(DESTDIR)$(prefix)/share/icons/hicolor/scalable/apps/streamdeckd.svg
 
@@ -84,7 +90,7 @@ rpm: dist
 	$(RPMBUILD) -tb streamdeckd-$(VERSION).tar.xz
 
 clean:
-	$(RM_F) streamdeckd $(OBJS) streamdeckd.spec streamdeckd.desktop
+	$(RM_F) streamdeckd $(OBJS) streamdeckd.spec streamdeckd.desktop resources.{xml,c,h}
 
 .PHONY: all install pngs dist srpm rpm clean
 .ONESHELL:
