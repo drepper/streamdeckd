@@ -8,6 +8,7 @@
 #include <queue>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
@@ -164,6 +165,20 @@ namespace obs {
     void callback(const Json::Value& val);
     void connection_update(bool connected_);
 
+    enum struct button_class : unsigned {
+      none = 0u,
+      live = 1u << 0,
+      preview = 1u << 1,
+      cut = 1u << 2,
+      auto_ = 1u << 3,
+      ftb = 1u << 5,
+      transition = 1u << 6,
+      record = 1u << 7,
+
+      all = live | preview | cut | auto_ | ftb | transition | record
+    };
+    void button_update(button_class bc);
+
     ftlibrary& ftobj;
 
     bool created_ws = false;
@@ -208,6 +223,19 @@ namespace obs {
 
     const std::string obsfont;
   };
+
+
+  inline info::button_class operator|(info::button_class l, info::button_class r)
+  {
+    using int_type = std::underlying_type_t<info::button_class>;
+    return info::button_class(int_type(l) | int_type(r));
+  }
+
+  inline info::button_class operator&(info::button_class l, info::button_class r)
+  {
+    using int_type = std::underlying_type_t<info::button_class>;
+    return info::button_class(int_type(l) & int_type(r));
+  }
 
 } // namespace obs
 

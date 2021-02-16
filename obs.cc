@@ -265,6 +265,38 @@ namespace obs {
   }
 
 
+  void info::button_update(button_class cb)
+  {
+    if ((cb & button_class::live) != button_class::none)
+      for (auto& b : scene_live_buttons)
+        std::get<1>(b).show_icon();
+
+    if ((cb & button_class::preview) != button_class::none)
+      for (auto& b : scene_preview_buttons)
+        std::get<1>(b).show_icon();
+
+    if ((cb & button_class::cut) != button_class::none)
+      for (auto& b : cut_buttons)
+        b.show_icon();
+
+    if ((cb & button_class::auto_) != button_class::none)
+      for (auto& b : auto_buttons)
+        b.show_icon();
+
+    if ((cb & button_class::ftb) != button_class::none)
+      for (auto& b : ftb_buttons)
+        b.show_icon();
+
+    if ((cb & button_class::transition) != button_class::none)
+      for (auto& b : transition_buttons)
+        std::get<1>(b).show_icon();
+
+    if ((cb & button_class::record) != button_class::none)
+      for (auto& b : record_buttons)
+        b.show_icon();
+  }
+
+
   void info::worker_thread()
   {
     get_session_data();
@@ -280,20 +312,7 @@ namespace obs {
         get_session_data();
         break;
       case work_request::work_type::buttons:
-        for (auto& b : scene_live_buttons)
-          std::get<1>(b).show_icon();
-        for (auto& b : scene_preview_buttons)
-          std::get<1>(b).show_icon();
-        for (auto& b : cut_buttons)
-          b.show_icon();
-        for (auto& b : auto_buttons)
-          b.show_icon();
-        for (auto& b : ftb_buttons)
-          b.show_icon();
-        for (auto& b : transition_buttons)
-          std::get<1>(b).show_icon();
-        for (auto& b : record_buttons)
-          b.show_icon();
+        button_update(button_class::all);
         break;
       case work_request::work_type::scene:
         {
@@ -379,13 +398,11 @@ namespace obs {
         break;
       case work_request::work_type::recording:
         is_recording = req.nr != 0;
-        for (auto& b : record_buttons)
-          b.show_icon();
+        button_update(button_class::record);
         break;
       case work_request::work_type::streaming:
         is_streaming = req.nr != 0;
-        for (auto& b : record_buttons)
-          b.show_icon();
+        button_update(button_class::record);
         break;
       case work_request::work_type::sceneschanged:
         scenes.clear();
@@ -396,10 +413,7 @@ namespace obs {
         d.clear();
         d["request-type"] = "GetPreviewScene";
         current_preview = obsws::call(d)["name"].asString();
-        for (auto& b : scene_live_buttons)
-          b.second.show_icon();
-        for (auto& b : scene_preview_buttons)
-          b.second.show_icon();
+        button_update(button_class::live | button_class::preview);
         break;
       case work_request::work_type::studiomode:
         studio_mode = req.nr;
@@ -407,16 +421,7 @@ namespace obs {
           d["request-type"] = "GetPreviewScene";
           current_preview = obsws::call(d)["name"].asString();
         }
-        for (auto& b : scene_preview_buttons)
-          std::get<1>(b).show_icon();
-        for (auto& b : cut_buttons)
-          b.show_icon();
-        for (auto& b : auto_buttons)
-          b.show_icon();
-        for (auto& b : ftb_buttons)
-          b.show_icon();
-        for (auto& b : transition_buttons)
-          std::get<1>(b).show_icon();
+        button_update(button_class::preview | button_class::cut | button_class::auto_ | button_class::ftb | button_class::transition);
         break;
       }
     }
