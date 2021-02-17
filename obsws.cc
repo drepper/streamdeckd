@@ -177,6 +177,9 @@ namespace {
       d["message-id"] = uuid_str;
       auto& req(send(std::move(d), emit));
 
+      if (log_transmits)
+        std::cout << "transmitted " << din << std::endl;
+
       if constexpr (emit) 
         return true;
       else {
@@ -204,6 +207,7 @@ namespace {
     const char* server;
     int port;
     bool log_events;
+    bool log_transmits;
 
     struct sul_wrapper {
       client* self;
@@ -248,9 +252,9 @@ namespace {
 
   client::client(obsws::event_cb_type event_cb_, obsws::update_cb_type update_cb_, const char* server_, unsigned port_, const char* log, int ssl_connection_, const char* ssl_ca_path, const uint32_t* backoff_ms, uint16_t nbackoff_ms, uint16_t secs_since_valid_ping, uint16_t secs_since_valid_hangup, uint8_t jitter_percent)
   : retry{ .retry_ms_table = backoff_ms, .retry_ms_table_count = nbackoff_ms, .conceal_count = nbackoff_ms, .secs_since_valid_ping = secs_since_valid_ping, .secs_since_valid_hangup = secs_since_valid_hangup, .jitter_percent = jitter_percent },
-    ssl_connection(ssl_connection_), server(server_), port(port_), log_events(strstr(log, "events") != nullptr), wrap{ this }, status(ws_status::connecting), event_cb(event_cb_), update_cb(update_cb_)
+    ssl_connection(ssl_connection_), server(server_), port(port_), log_events(strstr(log, "events") != nullptr), log_transmits(strstr(log, "transmits") != nullptr), wrap{ this }, status(ws_status::connecting), event_cb(event_cb_), update_cb(update_cb_)
   {
-    std::cout << "client::client\n";
+    // std::cout << "client::client\n";
     lws_context_creation_info info;
     memset(&info, '\0', sizeof info);
     info.options = ssl_connection ? LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT : 0;
@@ -265,13 +269,13 @@ namespace {
     if (context == nullptr)
       throw std::runtime_error("cannot create lws context");
 
-    std::cout << "created context\n";
+    // std::cout << "created context\n";
     /* schedule the first client connection attempt to happen immediately */
     lws_sul_schedule(context.get(), 0, &wrap.sul, client::connect, 1);
 
-    std::cout << "client::client scheduled\n";
+    // std::cout << "client::client scheduled\n";
     thread = std::thread(&client::run, this);
-    std::cout << "client::client started thread\n";
+    // std::cout << "client::client started thread\n";
   }
 
 
@@ -358,7 +362,7 @@ namespace {
       goto do_retry;
 
     case LWS_CALLBACK_CLIENT_ESTABLISHED:
-      std::cout << "connected!\n";
+      // std::cout << "connected!\n";
       update_cb(true);
       status = ws_status::connected;
       atomic_notify_all(status);
@@ -466,10 +470,10 @@ namespace {
   bool setup()
   {
     if (! wsobj) {
-      std::cout << "starting obsws thread\n";
+      // std::cout << "starting obsws thread\n";
       wsobj = client::allocate(event_cb, update_cb, server.c_str(), port, log.c_str(), 0);
 
-      std::cout << "started obsws thread\n";
+      // std::cout << "started obsws thread\n";
     }
     return bool(wsobj);
   }
@@ -517,27 +521,3 @@ namespace obsws {
   }
 
 } // namespace obsws
-
-
-#if 0
-int main()
-{
-  Json::Value d;
-  d["request-type"] = "GetVersion";
-  auto res = obsws::call(d);
-  std::cout << "res = " << res << std::endl;
-
-
-  d["request-type"] = "GetSceneList";
-  res = obsws::call(d);
-  std::cout << "res = " << res << std::endl;
-
-  d["request-type"] = "SetCurrentScene";
-  d["scene-name"] = "Before";
-  res = obsws::call(d);
-  std::cout << "res = " << res << std::endl;
-
-  sleep(2);
-  // wsobj.release();
-}
-#endif

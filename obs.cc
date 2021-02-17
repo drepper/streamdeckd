@@ -68,7 +68,7 @@ namespace obs {
     if (! i->connected)
       return;
 
-    if (! i->studio_mode && keyop != keyop_type::live_scene && keyop != keyop_type::record && keyop != keyop_type::stream)
+    if (! i->studio_mode && keyop != keyop_type::live_scene && keyop != keyop_type::record && keyop != keyop_type::stream && keyop != keyop_type::source)
       return;
 
     Json::Value batch;
@@ -91,9 +91,12 @@ namespace obs {
       }
       break;
     case keyop_type::cut:
-      i->handle_next_transition_change.clear();
       d["request-type"] = "TransitionToProgram";
       d["with-transition"]["name"] = "Cut";
+      (void) obsws::call(d);
+      d.clear();
+      d["request-type"] = "SetCurrentTransition";
+      d["transition-name"] = i->get_current_transition().name;
       obsws::emit(d);
       break;
     case keyop_type::auto_rate:
@@ -134,6 +137,16 @@ namespace obs {
     case keyop_type::stream:
       d["request-type"] = "StartStopStreaming";
       obsws::emit(d);
+      break;
+    case keyop_type::source:
+      if (2 * (nr - 1) < i->current_sources.size()) {
+        d["request-type"] = "SetSceneItemProperties";
+        if (i->studio_mode)
+          d["scene-name"] = i->current_preview;
+        d["item"] = i->current_sources[2 * (nr - 1)];
+        d["visible"] = i->current_sources[2 * (nr - 1) + 1] == "false";
+        obsws::emit(d);
+      }
       break;
     default:
       break;
@@ -215,9 +228,38 @@ namespace obs {
   }
 
 
+  void source_button::show_icon()
+  {
+    if (i->connected) {
+      unsigned idx = 2 * (base_type::nr - 1u);
+      if (idx < i->current_sources.size()) {
+        auto str = i->current_sources[idx];
+        std::vector<std::string> vs;
+        if (str.size() <= 5)
+          vs.emplace_back(str);
+        else {
+          std::istringstream iss(str);
+          vs = std::vector(std::istream_iterator<std::string>{iss}, std::istream_iterator<std::string>());
+        }
+
+        if (i->current_sources[idx + 1] == "true") {
+          font_render<render_to_image> renderobj(fontobj, icon1, 0.8, 0.8);
+          setkey(page, row, column, renderobj.draw(vs, i->im_black, 0.5, 0.5));
+        } else {
+          font_render<render_to_image> renderobj(fontobj, icon2, 0.8, 0.8);
+          setkey(page, row, column, renderobj.draw(vs, i->im_darkgray, 0.5, 0.5));
+        }
+        return;
+      }
+    }
+    setkey(page, row, column, i->source_unused_icon);
+  }
+
+
   info::info(const libconfig::Setting& config, ftlibrary& ftobj_)
   : ftobj(ftobj_), im_black("black"), im_white("white"), im_darkgray("darkgray"),
     obsicon(find_image("obs.png")), live_unused_icon(find_image("scene_live_unused.png")), preview_unused_icon(find_image("scene_preview_unused.png")),
+    source_unused_icon(find_image("source_unused.png")),
     obsfont(config.exists("font") ? std::string(config["font"]) : "Arial"s)
   {
     if (config.exists("server"))
@@ -294,6 +336,10 @@ namespace obs {
     if ((cb & button_class::record) != button_class::none)
       for (auto& b : record_buttons)
         b.show_icon();
+
+    if ((cb & button_class::sources) != button_class::none)
+      for (auto& b : source_buttons)
+        std::get<1>(b).show_icon();
   }
 
 
@@ -343,6 +389,30 @@ namespace obs {
           }
         }
         break;
+      case work_request::work_type::scenecontent:
+        if (! studio_mode) {
+          if (req.names[0] != current_scene)
+            // XYZ To do.  Should not happen but can be rectified by requesting scene content
+            abort();
+          else
+            req.names.erase(req.names.begin());
+          current_sources = std::move(req.names);
+          button_update(button_class::sources);
+        }
+        break;
+      case work_request::work_type::visible:
+        assert(req.names.size() == 3);
+        if (req.names[0] == (studio_mode ? current_preview : current_scene)) {
+          for (size_t j = 0; j < current_sources.size(); j += 2)
+            if (current_sources[j] == req.names[1]) {
+              current_sources[j + 1] = std::move(req.names[2]);
+              for (auto& p : source_buttons)
+                if (p.second.nr == j / 2 + 1u)
+                  p.second.show_icon();
+              break;
+            }
+        }
+        break;
       case work_request::work_type::preview:
         {
           auto& old_preview = get_current_preview();
@@ -354,6 +424,12 @@ namespace obs {
             for (auto& p : scene_preview_buttons)
               if (p.second.nr == old_preview.nr || p.second.nr == new_preview.nr)
                 p.second.show_icon();
+
+          if (studio_mode) {
+            req.names.erase(req.names.begin());
+            current_sources = std::move(req.names);
+            button_update(button_class::sources);
+          }
         }
         break;
       case work_request::work_type::transition:
@@ -519,10 +595,18 @@ namespace obs {
       bool has_Black = false;
       current_scene = scenelist["current-scene"].asString();
       auto& escenes = scenelist["scenes"];
-      for (auto& s : escenes) {
+      for (const auto& s : escenes) {
         auto name = s["name"].asString();
         has_Black |= name == "Black";
         scenes.emplace(std::piecewise_construct, std::forward_as_tuple(name), std::forward_as_tuple(1 + scenes.size(), name)); 
+
+        if (name == (studio_mode ? current_preview : current_scene)) {
+          current_sources.clear();
+          for (const auto& src : s["sources"]) {
+            current_sources.emplace_back(src["name"].asString());
+            current_sources.emplace_back(src["render"].asBool() ? "true" : "false");
+          }
+        }
       }
 
       if (! has_Black) {
@@ -543,9 +627,9 @@ namespace obs {
     if (ctransition.isMember("status") && ctransition["status"] == "ok") {
       current_transition = ctransition["name"].asString();
       if (ctransition.isMember("duration"))
-        current_duration_ms = ctransition["duration"].asInt();
+        current_duration_ms = ctransition["duration"].asUInt();
       else
-        current_duration_ms = -1;
+        current_duration_ms = 1;
     }
 
     auto previewscene = resp["results"][4];
@@ -659,6 +743,19 @@ namespace obs {
       	font = obsfont;
       unsigned nr = 1u + transition_buttons.size();
       return &transition_buttons.emplace(nr, transition_button(nr, setkey, this, page, row, column, icon1, icon2, keyop_type::transition, ftobj, font))->second;
+    } else if (function == "source") {
+      if (icon1.empty()) {
+        icon1 = "source.png";
+        if (icon2.empty())
+          icon2 = "source_off.png";
+      }
+      std::string font;
+      if (config.exists("font"))
+        config.lookupValue("font", font);
+      else
+        font = obsfont;
+      unsigned nr = 1u + source_buttons.size();
+      return &source_buttons.emplace(nr, source_button(nr, setkey, this, page, row, column, icon1, icon2, keyop_type::source, ftobj, font))->second;
     } else if (function == "toggle-record") {
       if (icon1.empty()) {
         icon1 = "record.png";
@@ -707,8 +804,13 @@ namespace obs {
       worker_queue.emplace(work_request::work_type::scene, 0, std::vector{ val["to-scene"].asString(), val["from-scene"].asString() });
       worker_cv.notify_all();
     } else if (update_type == "PreviewSceneChanged") {
+      std::vector<std::string> vs{ val["scene-name"].asString() };
+      for (const auto& s : val["sources"]) {
+        vs.emplace_back(s["name"].asString());
+        vs.emplace_back(s["render"].asBool() ? "true" : "false");
+      }
       std::lock_guard<std::mutex> guard(worker_m);
-      worker_queue.emplace(work_request::work_type::preview, 0, std::vector{ val["scene-name"].asString() });
+      worker_queue.emplace(work_request::work_type::preview, 0, vs);
       worker_cv.notify_all();
     } else if (update_type == "SwitchTransition") {
       if (handle_next_transition_change.test_and_set()) {
@@ -746,6 +848,25 @@ namespace obs {
     } else if (update_type == "StudioModeSwitched") {
       std::lock_guard<std::mutex> guard(worker_m);
       worker_queue.emplace(work_request::work_type::studiomode, val["new-state"].asBool());
+      worker_cv.notify_all();
+    } else if (update_type == "SwitchScenes") {
+      std::vector<std::string> vs{ val["scene-name"].asString() };
+      for (const auto& s : val["sources"]) {
+        vs.emplace_back(s["name"].asString());
+        vs.emplace_back(s["render"].asBool() ? "true" : "false");
+      }
+      std::lock_guard<std::mutex> guard(worker_m);
+      worker_queue.emplace(work_request::work_type::scenecontent, 0, std::move(vs));
+      worker_cv.notify_all();
+    } else if (update_type == "SceneItemVisibilityChanged") {
+      std::vector<std::string> vs{ val["scene-name"].asString(), val["item-name"].asString(), val["item-visible"].asString() };
+      std::lock_guard<std::mutex> guard(worker_m);
+      worker_queue.emplace(work_request::work_type::visible, 0, std::move(vs));
+      worker_cv.notify_all();
+    } else if (update_type == "SceneItemTransformChanged") {
+      std::vector<std::string> vs{ val["scene-name"].asString(), val["item-name"].asString(), val["transform"]["visible"].asString() };
+      std::lock_guard<std::mutex> guard(worker_m);
+      worker_queue.emplace(work_request::work_type::visible, 0, std::move(vs));
       worker_cv.notify_all();
     } else if (log_unknown_events)
       std::cout << "info::callback unhandled event = " << val << std::endl;

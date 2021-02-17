@@ -136,5 +136,6 @@ To Do
 4.  Show controls for sources in scene
 6.  FTB button: when pressed, blink red until pressed again
 7.  Errors and updating when switching studio mode in OBS
+8.  when selected transition is cut no duration is reported
 
 Author: Ulrich Drepper <drepper@gmail.com>

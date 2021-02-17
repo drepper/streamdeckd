@@ -64,7 +64,7 @@ void render_to_image::compute_dimensions()
   linesep = std::max(1u, unsigned(frac_linesep * totalheight / heights.size() + 0.5));
   totalheight += (heights.size() - 1) * linesep;
 
-  // std::cout << "maxwidth = " << maxwidth << " (target: " << targetwidth << ")   totalheight = " << totalheight << " (target: " << targetheight << ")  linesep = " << linesep << "\n";
+  // std::cout << "#lines = " << lines.size() << "  maxwidth = " << maxwidth << " (target: " << targetwidth << ")   totalheight = " << totalheight << " (target: " << targetheight << ")  linesep = " << linesep << "\n";
 }
 
 
@@ -136,8 +136,6 @@ Magick::Image& render_to_image::finish(Magick::Color foreground, double posx, do
 
     auto s0x = slices.front().x;
     for (const auto& s : slices) {
-      assert(s.y + s.height <= height);
-
       for (unsigned y = 0; y < s.height; ++y) {
         assert(s.x - s0x + s.width <= width);
 

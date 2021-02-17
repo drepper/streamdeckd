@@ -33,6 +33,7 @@ namespace obs {
     auto_rate,
     ftb,
     transition,
+    source,
     record,
     stream,
   };
@@ -80,7 +81,7 @@ namespace obs {
   struct auto_button : button {
     using base_type = button;
 
-    auto_button(unsigned nr_, set_key_image_cb setkey_, info* i_, unsigned page_, unsigned row_, unsigned column_, std::string& icon1_, keyop_type keyop_, ftlibrary& ftobj, const std::string& font_, const std::string& color_, std::pair<double,double>&& center_, int& duration_ms_)
+    auto_button(unsigned nr_, set_key_image_cb setkey_, info* i_, unsigned page_, unsigned row_, unsigned column_, std::string& icon1_, keyop_type keyop_, ftlibrary& ftobj, const std::string& font_, const std::string& color_, std::pair<double,double>&& center_, unsigned& duration_ms_)
     : base_type(nr_, setkey_, i_, page_, row_, column_, icon1_, icon1_, keyop_), fontobj(ftobj, std::move(font_)), duration_ms(duration_ms_), color(color_), center(std::move(center_))
     {
     }
@@ -88,7 +89,7 @@ namespace obs {
     void show_icon() override ;
 
     ftface fontobj;
-    int& duration_ms;
+    unsigned& duration_ms;
     Magick::Color color;
     std::pair<double,double> center;
   };
@@ -122,12 +123,28 @@ namespace obs {
   };
 
 
+  struct source_button : button {
+    using base_type = button;
+
+    source_button(unsigned nr_, set_key_image_cb setkey_, info* i_, unsigned page_, unsigned row_, unsigned column_, std::string& icon1_, std::string& icon2_, keyop_type keyop_, ftlibrary& ftobj, const std::string& font_)
+    : base_type(nr_, setkey_, i_, page_, row_, column_, icon1_, icon2_, keyop_), fontobj(ftobj, std::move(font_))
+    {
+    }
+
+    void show_icon() override;
+
+    ftface fontobj;
+  };
+
+
   struct work_request {
     enum struct work_type {
         none,
         new_session,
         buttons,
         scene,
+        scenecontent,
+        visible,
         preview,
         transition,
         new_scene,
@@ -174,8 +191,9 @@ namespace obs {
       ftb = 1u << 4,
       transition = 1u << 5,
       record = 1u << 6,
+      sources = 1u << 7,
 
-      all = live | preview | cut | auto_ | ftb | transition | record
+      all = live | preview | cut | auto_ | ftb | transition | record | sources
     };
     void button_update(button_class bc);
 
@@ -199,13 +217,15 @@ namespace obs {
 
     std::unordered_map<std::string,obs::scene> scenes;
     std::string current_scene;
+    std::vector<std::string> current_sources;
     std::string current_preview;
     std::unordered_map<std::string,obs::transition> transitions;
     std::string current_transition;
-    int current_duration_ms;
+    unsigned current_duration_ms;
     std::atomic_flag handle_next_transition_change = true;
 
     std::unordered_multimap<unsigned,scene_button> scene_live_buttons;
+    std::unordered_multimap<unsigned,source_button> source_buttons;
     std::unordered_multimap<unsigned,scene_button> scene_preview_buttons;
     std::list<button> cut_buttons;
     std::list<auto_button> auto_buttons;
@@ -220,6 +240,7 @@ namespace obs {
     const Magick::Image obsicon;
     const Magick::Image live_unused_icon;
     const Magick::Image preview_unused_icon;
+    const Magick::Image source_unused_icon;
 
     const std::string obsfont;
   };

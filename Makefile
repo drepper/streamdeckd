@@ -39,7 +39,7 @@ SVGS = brightness+.svg brightness-.svg color+.svg color-.svg ftb.svg obs.svg \
        scene_live.svg scene_live_off.svg scene_preview.svg scene_preview_off.svg \
        cut.svg auto.svg record.svg record_off.svg stream.svg stream_off.svg \
        transition.svg transition_off.svg scene_live_unused.svg scene_preview_unused.svg \
-       right-arrow.svg left-arrow.svg
+       right-arrow.svg left-arrow.svg source.svg source_off.svg source_unused.svg
 PNGS = $(SVGS:.svg=.png) bulb_on.png bulb_off.png bluejeans.png blank.png
 
 
