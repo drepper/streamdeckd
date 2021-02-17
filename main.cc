@@ -13,6 +13,9 @@ extern "C" {
 }
 #include <keylightpp.hh>
 #include <streamdeckpp.hh>
+#include <X11/Xlib.h>
+#include <X11/extensions/dpms.h>
+#include <X11/extensions/scrnsaver.h>
 
 #include "obs.hh"
 #include "ftlibrary.hh"
@@ -287,6 +290,21 @@ namespace {
 
     void setkey(unsigned page, unsigned row, unsigned column, const Magick::Image& image);
 
+    void handle_idle();
+
+    enum struct idle {
+      running,
+      temp,
+      full
+    };
+    idle idle_state = idle::running;
+    void idle_dim(idle i);
+    unsigned brightness;
+    unsigned idle_temp_time = 0;
+    unsigned idle_full_time = 0;
+    unsigned brightness_idle;
+    std::thread idle_thread;
+
     streamdeck::context ctx;
     streamdeck::device_type* dev = nullptr;
 
@@ -321,9 +339,28 @@ namespace {
         obs = std::make_unique<obs::info>(group, ftobj);
     }
 
-    unsigned brightness;
     if (! config.lookupValue("brightness", brightness))
       brightness = 100;
+    brightness_idle = brightness;
+
+    if (config.exists("idle"))
+      if (auto& idle = config.lookup("idle"); idle.isGroup()) {
+        if (! idle.lookupValue("away", idle_temp_time))
+          idle_temp_time = 0;
+        else
+          idle_temp_time *= 1000;
+        if (! idle.lookupValue("off", idle_full_time))
+          idle_full_time = 0;
+        else
+          idle_full_time *= 1000;
+
+        if (idle_temp_time != 0 || idle_full_time != 0) {
+          if (! idle.lookupValue("brightness", brightness_idle))
+            idle_temp_time = 0;
+
+          idle_thread = std::thread([this]{ handle_idle(); });
+        }
+      }
 
     for (auto& d : ctx) {
       if (! d->connected())
@@ -454,6 +491,8 @@ namespace {
 
     while (true) {
       auto ss = dev->read();
+      if (idle_state == idle::full)
+        continue;
       unsigned k = 0;
       for (auto s : ss) {
         if (s != 0)
@@ -468,6 +507,90 @@ namespace {
   void deck_config::nextpage(unsigned to_page) {
     current_page = to_page;
     show_icons();
+  }
+
+  // The logic of this code is mostly from:
+  // https://github.com/g0hl1n/xprintidle/blob/master/xprintidle.c
+  void deck_config::handle_idle()
+  {
+    Display* dpy = XOpenDisplay(nullptr);
+    if (dpy == nullptr)
+      return;
+
+    int event_basep, error_basep;
+    if (! XScreenSaverQueryExtension(dpy, &event_basep, &error_basep))
+      return;
+
+    XScreenSaverInfo* ssi = XScreenSaverAllocInfo();
+    if (ssi == nullptr)
+      return;
+
+    auto vendrel = VendorRelease(dpy);
+    while (true) {
+      if (! XScreenSaverQueryInfo(dpy, DefaultRootWindow(dpy), ssi))
+        return;
+
+      auto idle = ssi->idle;
+      if (vendrel < 12000000) [[ unlikely ]] {
+        if (int dummy; DPMSQueryExtension(dpy, &dummy, &dummy) && DPMSCapable(dpy)) {
+          CARD16 standby;
+          CARD16 suspend;
+          CARD16 off;
+          DPMSGetTimeouts(dpy, &standby, &suspend, &off);
+
+          CARD16 state;
+          BOOL onoff;
+          DPMSInfo(dpy, &state, &onoff);
+          if (onoff)
+            switch (state) {
+            case DPMSModeStandby:
+              // this check is a little bit paranoid, but be sure
+              if (idle < unsigned(standby * 1000))
+                idle += (standby * 1000);
+              break;
+            case DPMSModeSuspend:
+              if (idle < unsigned((suspend + standby) * 1000))
+                idle += ((suspend + standby) * 1000);
+              break;
+            case DPMSModeOff:
+              if (idle < unsigned((off + suspend + standby) * 1000))
+                idle += ((off + suspend + standby) * 1000);
+              break;
+            case DPMSModeOn:
+            default:
+              break;
+            }
+        }
+      }
+
+      if (idle_full_time != 0 && idle > idle_full_time) {
+        idle_dim(idle::full);
+        sleep(std::min(300u, std::min(idle_full_time, idle_temp_time) / 1000));
+      } else if (idle_temp_time != 0 && idle > idle_temp_time) {
+        idle_dim(idle::temp);
+        sleep(std::min(60u, (idle_full_time - idle_temp_time) / 1000));;
+      } else {
+        idle_dim(idle::running);
+        sleep(std::max(5lu, (idle_temp_time - idle) / 1000u));
+      }
+    }
+  }
+
+
+  void deck_config::idle_dim(idle i)
+  {
+    if (i != idle_state)
+      switch (idle_state = i) {
+      case idle::running:
+        dev->set_brightness(brightness);
+        break;
+      case idle::temp:
+        dev->set_brightness(brightness_idle);
+        break;
+      case idle::full:
+        dev->set_brightness(0);
+        break;
+      }
   }
 
 

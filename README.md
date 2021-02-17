@@ -130,7 +130,6 @@ remedy is to restart the daemon.
 To Do
 -----
 
-1.  Dimm/turn off lights when session not active (and not rcording?)
 2.  When config file changed, reload
 3.  GUI for creation of the config file
 4.  Show controls for sources in scene

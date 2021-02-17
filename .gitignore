@@ -34,3 +34,6 @@ right-arrow.png
 resources.c
 resources.h
 resources.xml
+source.png
+source_off.png
+source_unused.png

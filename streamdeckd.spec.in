@@ -21,6 +21,9 @@ BuildRequires: fontconfig-devel
 BuildRequires: utf8proc-devel
 BuildRequires: ImageMagick-c++-devel
 BuildRequires: glibmm24-devel
+BuildRequires: libX11-devel
+BuildRequires: libext-devel
+BuildRequires: libXScrnSaver-devel
 BuildRequires: gcc-c++ >= 10.1
 
 %description

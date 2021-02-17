@@ -30,7 +30,7 @@ prefix = /usr
 bindir = $(prefix)/bin
 
 IFACEPKGS = 
-DEPPKGS = freetype2 fontconfig Magick++ libutf8proc libconfig++ keylightpp streamdeckpp libcrypto jsoncpp uuid libwebsockets giomm-2.4
+DEPPKGS = freetype2 fontconfig Magick++ libutf8proc libconfig++ keylightpp streamdeckpp libcrypto jsoncpp uuid libwebsockets giomm-2.4 xscrnsaver xext x11
 ALLPKGS = $(IFACEPKGS) $(DEPPKGS)
 
 OBJS = main.o obs.o obsws.o ftlibrary.o buttontext.o resources.o
