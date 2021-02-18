@@ -511,26 +511,19 @@ namespace obs {
         button_update(button_class::live | button_class::preview);
         break;
       case work_request::work_type::studiomode:
-        studio_mode = req.nr;
-        if (studio_mode) {
-          d["request-type"] = "GetPreviewScene";
+        {
+          studio_mode = req.nr;
+          d["request-type"] = studio_mode ? "GetPreviewScene" : "GetCurrentScene";
           auto res = obsws::call(d);
-          current_preview = res["name"].asString();
+          if (studio_mode)
+            current_preview = res["name"].asString();
           current_sources.clear();
           for (const auto& s : res["sources"]) {
             current_sources.emplace_back(s["name"].asString());
             current_sources.emplace_back(s["render"].asBool() ? "true"s : "false"s);
           }
-        } else {
-          d["request-type"] = "GetCurrentScene";
-          auto res = obsws::call(d);
-          current_sources.clear();
-          for (const auto& s : res["sources"]) {
-            current_sources.emplace_back(s["name"].asString());
-            current_sources.emplace_back(s["render"].asBool() ? "true"s : "false"s);
-          }
+          button_update(button_class::all ^ button_class::live ^ button_class::record);
         }
-        button_update(button_class::all ^ button_class::live ^ button_class::record);
         break;
       case work_request::work_type::sourcename:
         for (size_t i = 0; 2 * i < current_sources.size(); ++i)
