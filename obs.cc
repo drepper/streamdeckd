@@ -555,6 +555,20 @@ namespace obs {
             b.show_icon();
         }
         break;
+      case work_request::work_type::sourceorder:
+        if ((studio_mode && req->names[0] == current_preview) || (!studio_mode && req->names[0] == current_scene)) {
+          req->names.erase(req->names.begin());
+          auto it = req->names.begin();
+          while (it != req->names.end()) {
+            auto it2 = std::find(current_sources.begin(), current_sources.end(), *it);
+            assert(it2 != current_sources.end());
+            it = req->names.emplace(it + 1, *(it2 + 1));
+            ++it;
+          }
+          current_sources = std::move(req->names);
+          button_update(button_class::sources);
+        }
+        break;
       }
     }
   }
@@ -929,6 +943,13 @@ namespace obs {
       std::vector<std::string> vs{ val["to-scene"].asString(), val["name"].asString() };
       std::lock_guard<std::mutex> guard(worker_m);
       worker_queue.emplace(work_request::work_type::transitionend, 0, std::move(vs));
+      worker_cv.notify_all();
+    } else if (update_type == "SourceOrderChanged") {
+      std::vector<std::string> vs{ val["scene-name"].asString() };
+      for (const auto& s : val["scene-items"])
+        vs.emplace(vs.begin() + 1, s["source-name"].asString());
+      std::lock_guard<std::mutex> guard(worker_m);
+      worker_queue.emplace(work_request::work_type::sourceorder, 0, std::move(vs));
       worker_cv.notify_all();
     } else if (log_unknown_events)
       std::cout << "info::callback unhandled event = " << val << std::endl;
