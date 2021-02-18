@@ -5,6 +5,7 @@
 #include <functional>
 #include <list>
 #include <mutex>
+#include <optional>
 #include <queue>
 #include <string>
 #include <thread>
@@ -207,7 +208,7 @@ namespace obs {
     bool created_ws = false;
     bool connected = false;
     std::queue<work_request> worker_queue;
-    work_request get_request();
+    std::optional<work_request> get_request();
 
     std::condition_variable worker_cv;
     std::mutex worker_m;
