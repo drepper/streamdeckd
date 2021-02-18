@@ -648,8 +648,10 @@ namespace obs {
       auto& escenes = scenelist["scenes"];
       for (const auto& s : escenes) {
         auto name = s["name"].asString();
-        has_Black |= name == "Black";
-        scenes.emplace(std::piecewise_construct, std::forward_as_tuple(name), std::forward_as_tuple(1 + scenes.size(), name)); 
+        if (name == "Black")
+          has_Black = true;
+        else
+          scenes.emplace(std::piecewise_construct, std::forward_as_tuple(name), std::forward_as_tuple(1 + scenes.size(), name)); 
 
         if (name == (studio_mode ? current_preview : current_scene)) {
           current_sources.clear();
