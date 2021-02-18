@@ -513,13 +513,10 @@ namespace obs {
           if (current_sources[i] == req.names[0]) {
             current_sources[i] = req.names[1];
             for (auto& e : source_buttons)
-              if (e.second.nr == 1 + i) {
+              if (e.second.nr == 1 + i)
                 e.second.show_icon();
-                break;
-              }
             break;
           }
-
         break;
       }
     }
@@ -586,6 +583,10 @@ namespace obs {
     batch["requests"].append(d);
 
     d.clear();
+    d["request-type"] = "GetTransitionDuration";
+    batch["requests"].append(d);
+
+    d.clear();
     d["request-type"] = "GetPreviewScene";
     batch["requests"].append(d);
 
@@ -637,23 +638,22 @@ namespace obs {
           transitions.emplace(std::piecewise_construct, std::forward_as_tuple(name), std::forward_as_tuple(1 + transitions.size(), name));
 
     auto& ctransition = resp["results"][3];
-    if (ctransition.isMember("status") && ctransition["status"] == "ok") {
+    if (ctransition.isMember("status") && ctransition["status"] == "ok")
       current_transition = ctransition["name"].asString();
-      if (ctransition.isMember("duration"))
-        current_duration_ms = ctransition["duration"].asUInt();
-      else
-        current_duration_ms = 1;
-    }
 
-    auto previewscene = resp["results"][4];
+    auto& dtransition = resp["results"][4];
+    if (dtransition.isMember("status") && dtransition["status"] == "ok")
+      current_duration_ms = dtransition["transition-duration"].asUInt();
+
+    auto previewscene = resp["results"][5];
     if (previewscene.isMember("status") && previewscene["status"] == "ok")
       current_preview = previewscene["name"].asString();
 
-    auto recordingstatus = resp["results"][5];
+    auto recordingstatus = resp["results"][6];
     if (recordingstatus.isMember("status") && recordingstatus["status"] == "ok")
       is_recording = recordingstatus["isRecording"].asBool() && ! recordingstatus["isRecordingPaused"].asBool();
 
-    auto streamingstatus = resp["results"][6];
+    auto streamingstatus = resp["results"][7];
     if (streamingstatus.isMember("status") && streamingstatus["status"] == "ok") {
       is_streaming = streamingstatus["streaming"].asBool();
       is_recording = streamingstatus["recording"].asBool() && ! streamingstatus["recording-paused"].asBool();
