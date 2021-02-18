@@ -508,6 +508,19 @@ namespace obs {
         }
         button_update(button_class::all ^ button_class::live ^ button_class::record);
         break;
+      case work_request::work_type::sourcename:
+        for (size_t i = 0; 2 * i < current_sources.size(); ++i)
+          if (current_sources[i] == req.names[0]) {
+            current_sources[i] = req.names[1];
+            for (auto& e : source_buttons)
+              if (e.second.nr == 1 + i) {
+                e.second.show_icon();
+                break;
+              }
+            break;
+          }
+
+        break;
       }
     }
   }
@@ -867,6 +880,11 @@ namespace obs {
       std::vector<std::string> vs{ val["scene-name"].asString(), val["item-name"].asString(), val["transform"]["visible"].asString() };
       std::lock_guard<std::mutex> guard(worker_m);
       worker_queue.emplace(work_request::work_type::visible, 0, std::move(vs));
+      worker_cv.notify_all();
+    } else if (update_type == "SourceRenamed") {
+      std::vector<std::string> vs{ val["previousName"].asString(), val["newName"].asString() };
+      std::lock_guard<std::mutex> guard(worker_m);
+      worker_queue.emplace(work_request::work_type::sourcename, 0, std::move(vs));
       worker_cv.notify_all();
     } else if (log_unknown_events)
       std::cout << "info::callback unhandled event = " << val << std::endl;

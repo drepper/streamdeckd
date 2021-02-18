@@ -153,6 +153,7 @@ namespace obs {
         streaming,
         sceneschanged,
         studiomode,
+        sourcename,
     } type;
     unsigned nr = 0;
     std::vector<std::string> names;
