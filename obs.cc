@@ -280,6 +280,10 @@ namespace obs {
       log = "";
       log_unknown_events = false;
     }
+    if (config.exists("open"))
+      open = std::string(config["open"]);
+    else
+      open = "";
 
     obsws::config([this](const Json::Value& val){ callback(val); }, [this](bool connected){ connection_update(connected); }, server.c_str(), port, log.c_str());
 
@@ -474,6 +478,14 @@ namespace obs {
       case work_request::work_type::recording:
         is_recording = req.nr != 0;
         button_update(button_class::record);
+        if (! is_recording && ! open.empty()) {
+          std::filesystem::path fname(req.names[0]);
+          static const char pattern[] = "%URL%";
+          auto cmd = open;
+          if (auto n = cmd.find(pattern); n != std::string::npos)
+            cmd.replace(n, sizeof(pattern), "file://"s + fname.parent_path().string());
+          system(cmd.c_str());
+        }
         break;
       case work_request::work_type::streaming:
         is_streaming = req.nr != 0;
@@ -864,7 +876,7 @@ namespace obs {
       }
     } else if (update_type == "RecordingStarted" || update_type == "RecordingStopped") {
       std::lock_guard<std::mutex> guard(worker_m);
-      worker_queue.emplace(work_request::work_type::recording, update_type == "RecordingStarted");
+      worker_queue.emplace(work_request::work_type::recording, update_type == "RecordingStarted", std::vector{ val["recordingFilename"].asString() });
       worker_cv.notify_all();
     } else if (update_type == "StreamStarted" || update_type == "StreamStopped") {
       std::lock_guard<std::mutex> guard(worker_m);

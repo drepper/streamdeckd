@@ -139,9 +139,9 @@ seem not to send out the required signs of life frequently enough.  The
 daemon tries to find the device a few times but if this fails the only
 remedy is to restart the daemon.
 
-The process is using threads.  Especially on high core-count machines
+The process uses threads.  Especially on high core-count machines
 there are a lot of them.  The predominant reason for that is the ASIO
-functionality that is used by the websocket library.  It creates an
+functionality that is used by some libraries.  It creates an
 internal thread pool and I haven't been able to find so far a way to
 limit the number of threads in that pool.  Most of them should sleep
 all the time so the resource consumption should be minimal.

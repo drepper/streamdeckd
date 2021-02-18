@@ -239,6 +239,7 @@ namespace obs {
     std::list<button> ftb_buttons;
     std::unordered_multimap<unsigned,transition_button> transition_buttons;
     std::list<button> record_buttons;
+    std::string open;
 
     const Magick::Color im_black;
     const Magick::Color im_white;
