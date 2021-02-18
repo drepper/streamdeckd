@@ -154,6 +154,8 @@ namespace obs {
         sceneschanged,
         studiomode,
         sourcename,
+        transitionend,
+        duration,
     } type;
     unsigned nr = 0;
     std::vector<std::string> names;
@@ -217,6 +219,8 @@ namespace obs {
     bool studio_mode = false;
     bool is_recording = false;
     bool is_streaming = false;
+
+    bool ignore_next_transition_change = false;
 
     std::unordered_map<std::string,obs::scene> scenes;
     std::string current_scene;

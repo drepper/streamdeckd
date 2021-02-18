@@ -91,12 +91,10 @@ namespace obs {
       }
       break;
     case keyop_type::cut:
+      i->ignore_next_transition_change = true;
       d["request-type"] = "TransitionToProgram";
       d["with-transition"]["name"] = "Cut";
-      (void) obsws::call(d);
-      d.clear();
-      d["request-type"] = "SetCurrentTransition";
-      d["transition-name"] = i->get_current_transition().name;
+      d["with-transition"]["duration"] = 0u;
       obsws::emit(d);
       break;
     case keyop_type::auto_rate:
@@ -433,7 +431,7 @@ namespace obs {
         }
         break;
       case work_request::work_type::transition:
-        {
+        if (! ignore_next_transition_change) {
           auto& old_transition = get_current_transition();
           current_transition = req.names[0];
           auto& new_transition = get_current_transition();
@@ -517,6 +515,27 @@ namespace obs {
                 e.second.show_icon();
             break;
           }
+        break;
+      case work_request::work_type::transitionend:
+        if (ignore_next_transition_change && req.names[1] == "Cut") {
+          ignore_next_transition_change = false;
+          batch["request-type"] = "ExecuteBatch";
+          d["request-type"] = "SetCurrentTransition";
+          d["transition-name"] = current_transition;
+          batch["requests"].append(d);
+          d.clear();
+          d["request-type"] = "SetTransitionDuration";
+          d["duration"] = current_duration_ms;
+          batch["requests"].append(d);
+          obsws::emit(batch);
+        }
+        break;
+      case work_request::work_type::duration:
+        if (! ignore_next_transition_change) {
+          current_duration_ms = req.nr;
+          for (auto& b : auto_buttons)
+            b.show_icon();
+        }
         break;
       }
     }
@@ -834,9 +853,9 @@ namespace obs {
     } else if (update_type == "Exiting")
       connection_update(false);
     else if (update_type == "TransitionDurationChanged") {
-      current_duration_ms = val["new-duration"].asInt();
-      for (auto& b : auto_buttons)
-        b.show_icon();
+      std::lock_guard<std::mutex> guard(worker_m);
+      worker_queue.emplace(work_request::work_type::duration, val["new-duration"].asUInt());
+      worker_cv.notify_all();
     } else if (update_type == "SourceCreated" || update_type == "SourceDestroyed") {
       if (val["sourceType"] == "scene") {
         std::lock_guard<std::mutex> guard(worker_m);
@@ -885,6 +904,11 @@ namespace obs {
       std::vector<std::string> vs{ val["previousName"].asString(), val["newName"].asString() };
       std::lock_guard<std::mutex> guard(worker_m);
       worker_queue.emplace(work_request::work_type::sourcename, 0, std::move(vs));
+      worker_cv.notify_all();
+    } else if (update_type == "TransitionEnd") {
+      std::vector<std::string> vs{ val["to-scene"].asString(), val["name"].asString() };
+      std::lock_guard<std::mutex> guard(worker_m);
+      worker_queue.emplace(work_request::work_type::transitionend, 0, std::move(vs));
       worker_cv.notify_all();
     } else if (log_unknown_events)
       std::cout << "info::callback unhandled event = " << val << std::endl;
