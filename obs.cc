@@ -514,7 +514,21 @@ namespace obs {
         studio_mode = req.nr;
         if (studio_mode) {
           d["request-type"] = "GetPreviewScene";
-          current_preview = obsws::call(d)["name"].asString();
+          auto res = obsws::call(d);
+          current_preview = res["name"].asString();
+          current_sources.clear();
+          for (const auto& s : res["sources"]) {
+            current_sources.emplace_back(s["name"].asString());
+            current_sources.emplace_back(s["render"].asBool() ? "true"s : "false"s);
+          }
+        } else {
+          d["request-type"] = "GetCurrentScene";
+          auto res = obsws::call(d);
+          current_sources.clear();
+          for (const auto& s : res["sources"]) {
+            current_sources.emplace_back(s["name"].asString());
+            current_sources.emplace_back(s["render"].asBool() ? "true"s : "false"s);
+          }
         }
         button_update(button_class::all ^ button_class::live ^ button_class::record);
         break;
