@@ -22,7 +22,7 @@ BuildRequires: utf8proc-devel
 BuildRequires: ImageMagick-c++-devel
 BuildRequires: glibmm24-devel
 BuildRequires: libX11-devel
-BuildRequires: libext-devel
+BuildRequires: libXext-devel
 BuildRequires: libXScrnSaver-devel
 BuildRequires: libXi-devel
 BuildRequires: gcc-c++ >= 10.1
@@ -52,8 +52,9 @@ mkdir -p ${RPM_BUILD_ROOT}%{_prefix}
 %{_datadir}/icons/hicolor/scalable/apps/streamdeckd.svg
 
 %changelog
-* Tue Feb 16 2021 Ulrich Drepper <drepper@gmail.com> 2.1-1
+* Thu Feb 18 2021 Ulrich Drepper <drepper@gmail.com> 2.1-1
 - Handle disabled studio mode
+- Dim display when idle
 * Tue Feb 16 2021 Ulrich Drepper <drepper@gmail.com> 2.0-3
 - Use integrated resources instead of shared files
 - remove need for icon definitions in conf file for builtin functions
