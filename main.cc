@@ -1,8 +1,11 @@
+#include <cerrno>
 #include <cstdlib>
 #include <filesystem>
 
+#include <error.h>
 #include <pwd.h>
 #include <unistd.h>
+#include <sys/poll.h>
 
 #include <libconfig.h++>
 #include <giomm.h>
@@ -16,6 +19,7 @@ extern "C" {
 #include <X11/Xlib.h>
 #include <X11/extensions/dpms.h>
 #include <X11/extensions/scrnsaver.h>
+#include <X11/extensions/XInput2.h>
 
 #include "obs.hh"
 #include "ftlibrary.hh"
@@ -291,6 +295,9 @@ namespace {
     void setkey(unsigned page, unsigned row, unsigned column, const Magick::Image& image);
 
     void handle_idle();
+    bool prohibit_sleep() const {
+      return obs && obs->prohibit_sleep();
+    }
 
     enum struct idle {
       running,
@@ -509,7 +516,55 @@ namespace {
     show_icons();
   }
 
-  // The logic of this code is mostly from:
+
+  namespace {
+
+    auto get_idle(Display* dpy, XScreenSaverInfo* ssi, int vendrel)
+    {
+      if (! XScreenSaverQueryInfo(dpy, DefaultRootWindow(dpy), ssi))
+        return 0ul;
+
+      auto idle = ssi->idle;
+      if (vendrel >= 12000000) [[ likely ]]
+        return idle;
+
+      if (int dummy; DPMSQueryExtension(dpy, &dummy, &dummy) && DPMSCapable(dpy)) {
+        CARD16 standby;
+        CARD16 suspend;
+        CARD16 off;
+        DPMSGetTimeouts(dpy, &standby, &suspend, &off);
+
+        CARD16 state;
+        BOOL onoff;
+        DPMSInfo(dpy, &state, &onoff);
+        if (onoff)
+          switch (state) {
+          case DPMSModeStandby:
+            // this check is a little bit paranoid, but be sure
+            if (idle < unsigned(standby * 1000))
+              idle += (standby * 1000);
+            break;
+          case DPMSModeSuspend:
+            if (idle < unsigned((suspend + standby) * 1000))
+              idle += ((suspend + standby) * 1000);
+            break;
+          case DPMSModeOff:
+            if (idle < unsigned((off + suspend + standby) * 1000))
+              idle += ((off + suspend + standby) * 1000);
+            break;
+          case DPMSModeOn:
+          default:
+            break;
+          }
+      }
+
+      return idle;
+    }
+
+  } // anonymous namespace
+
+
+  // The logic of this code is partly from:
   // https://github.com/g0hl1n/xprintidle/blob/master/xprintidle.c
   void deck_config::handle_idle()
   {
@@ -525,54 +580,67 @@ namespace {
     if (ssi == nullptr)
       return;
 
+    auto dim_time = idle_temp_time == 0 ? idle_full_time : idle_temp_time;
     auto vendrel = VendorRelease(dpy);
     while (true) {
-      if (! XScreenSaverQueryInfo(dpy, DefaultRootWindow(dpy), ssi))
+      if (! XScreenSaverQueryInfo(dpy, DefaultRootWindow(dpy), ssi)) {
+        std::cout << "failed to get screen saver info\n";
         return;
+      }
 
-      auto idle = ssi->idle;
-      if (vendrel < 12000000) [[ unlikely ]] {
-        if (int dummy; DPMSQueryExtension(dpy, &dummy, &dummy) && DPMSCapable(dpy)) {
-          CARD16 standby;
-          CARD16 suspend;
-          CARD16 off;
-          DPMSGetTimeouts(dpy, &standby, &suspend, &off);
+      auto idle = get_idle(dpy, ssi, vendrel);
+      if (prohibit_sleep() || idle < dim_time) {
+        sleep(std::max(10ul, (dim_time - idle) / 1000u));
+        continue;
+      }
 
-          CARD16 state;
-          BOOL onoff;
-          DPMSInfo(dpy, &state, &onoff);
-          if (onoff)
-            switch (state) {
-            case DPMSModeStandby:
-              // this check is a little bit paranoid, but be sure
-              if (idle < unsigned(standby * 1000))
-                idle += (standby * 1000);
-              break;
-            case DPMSModeSuspend:
-              if (idle < unsigned((suspend + standby) * 1000))
-                idle += ((suspend + standby) * 1000);
-              break;
-            case DPMSModeOff:
-              if (idle < unsigned((off + suspend + standby) * 1000))
-                idle += ((off + suspend + standby) * 1000);
-              break;
-            case DPMSModeOn:
-            default:
-              break;
-            }
+      // The system is idle.  Switch into event tracking mode.
+      Display* dpy2 = XOpenDisplay(nullptr);
+      if (dpy2 == nullptr)
+        return;
+      Window win = DefaultRootWindow(dpy2);
+
+      XIEventMask m;
+      m.deviceid = XIAllDevices;
+      m.mask_len = XIMaskLen(XI_LASTEVENT);
+      m.mask = static_cast<unsigned char*>(calloc(m.mask_len, sizeof(unsigned char)));
+      if (m.mask == nullptr)
+        error(EXIT_FAILURE, errno, "failed to allocate event mask");
+
+      XISetMask(m.mask, XI_ButtonPress);
+      XISetMask(m.mask, XI_ButtonRelease);
+      XISetMask(m.mask, XI_KeyPress);
+      XISetMask(m.mask, XI_KeyRelease);
+      XISetMask(m.mask, XI_Motion);
+      XISetMask(m.mask, XI_TouchBegin);
+      XISetMask(m.mask, XI_TouchUpdate);
+      XISetMask(m.mask, XI_TouchEnd);
+
+      XISelectEvents(dpy2, win, &m, 1);
+
+      free(m.mask);
+
+      XSync(dpy2, False);
+
+      int fd = ConnectionNumber(dpy2);
+      pollfd fds[1] { { .fd = fd, .events = POLLIN, .revents = 0 } };
+
+      idle_dim(idle >= idle_full_time ? idle::full : idle::temp);
+
+      while (true) {
+        auto n = poll(fds, 1, idle_state == idle::full ? -1 : (idle_full_time - idle_temp_time));
+        if (n != 0) {
+          // System event.  Resume normal operation, reset brightness.
+          idle_dim(idle::running);
+          break;
         }
+
+        assert(idle_state == idle::temp);
+        idle_dim(idle::full);
       }
 
-      if (idle_full_time != 0 && idle > idle_full_time) {
-        idle_dim(idle::full);
-        sleep(std::min(300u, std::min(idle_full_time, idle_temp_time) / 1000));
-      } else if (idle_temp_time != 0 && idle > idle_temp_time) {
-        idle_dim(idle::temp);
-        sleep(std::min(60u, (idle_full_time - idle_temp_time) / 1000));;
-      } else {
-        idle_dim(idle::running);
-        sleep(std::max(5lu, (idle_temp_time - idle) / 1000u));
-      }
+      XDestroyWindow(dpy2, win);
+      XCloseDisplay(dpy2);
     }
   }
 

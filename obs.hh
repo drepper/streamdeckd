@@ -182,6 +182,8 @@ namespace obs {
     void callback(const Json::Value& val);
     void connection_update(bool connected_);
 
+    bool prohibit_sleep() const { return is_recording || is_streaming; }
+
     enum struct button_class : unsigned {
       none = 0u,
       live = 1u << 0,

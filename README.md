@@ -10,7 +10,14 @@ be provided as the command line parameter.  The file content could look as
 follows:
 
     serial= "CL...";
-    
+     
+    brightness= 50;
+    idle: {
+      away = 300;
+      brightness = 20;
+      off = 1800;
+    };
+     
     keys: (
       {
         r1c1: {
@@ -55,6 +62,12 @@ The first `serial` definition is the serial number of the StreamDeck which is me
 The support is limited to those devices supported by the `streamdeckpp` package which should be,
 as of the time of this writing, be all of them.  The library can be used to determine the serial
 number if it is not known.
+
+The `bightness` definition at the top level defines the brightness of the
+Stream Deck display when the user is active.  The behavior when the user is
+idle can be defined in the `idle` group.  When it is missing nothing special happens.  Otherwise, the display is dimmed to the level specified in
+the `brightness` definition inside the `idle` group when the idle time reaches `away` seconds.  After `off` seconds the display is turned off entirely.  At that point no button can be pressed.  The display is returned
+to normal operation when the keyboard and/or mouse is used.
 
 The second top-level definition is the `keys` list.  It contains one entry,
 which must be a directory as explained below, per page.  A page consists
@@ -132,9 +145,13 @@ To Do
 
 2.  When config file changed, reload
 3.  GUI for creation of the config file
-4.  Show controls for sources in scene
 6.  FTB button: when pressed, blink red until pressed again
-7.  Errors and updating when switching studio mode in OBS
-8.  when selected transition is cut no duration is reported
+
+
+Bugs
+----
+
+1.  Errors and updating when switching studio mode in OBS
+2.  When selected transition is cut no duration is reported
 
 Author: Ulrich Drepper <drepper@gmail.com>
