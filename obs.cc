@@ -911,95 +911,93 @@ namespace obs {
   // affect the state of the object.
   void info::callback(const Json::Value& val)
   {
+    std::vector<std::string> vs;
+    decltype(work_request::nr) nr = 0;
+    work_request::work_type type(work_request::work_type::none);
+
+
     auto update_type = val["update-type"]; 
     if (update_type == "TransitionVideoEnd") {
-      std::lock_guard<std::mutex> guard(worker_m);
-      worker_queue.emplace(work_request::work_type::scene, 0, std::vector{ val["to-scene"].asString(), val["from-scene"].asString() });
-      worker_cv.notify_all();
+      vs.emplace_back(val["to-scene"].asString());
+      vs.emplace_back(val["from-scene"].asString());
+      type = work_request::work_type::scene;
     } else if (update_type == "PreviewSceneChanged") {
-      std::vector<std::string> vs{ val["scene-name"].asString() };
+      vs.emplace_back(val["scene-name"].asString());
       for (const auto& s : val["sources"]) {
         vs.emplace_back(s["name"].asString());
         vs.emplace_back(s["render"].asBool() ? "true" : "false");
       }
-      std::lock_guard<std::mutex> guard(worker_m);
-      worker_queue.emplace(work_request::work_type::preview, 0, vs);
-      worker_cv.notify_all();
+      type = work_request::work_type::preview;
     } else if (update_type == "SwitchTransition") {
-      if (handle_next_transition_change.test_and_set()) {
-        std::lock_guard<std::mutex> guard(worker_m);
-        worker_queue.emplace(work_request::work_type::transition, 0, std::vector{ val["transition-name"].asString() });
-        worker_cv.notify_all();
-      }
+      if (! handle_next_transition_change.test_and_set())
+        return;
+
+      vs.emplace_back(val["transition-name"].asString());
+      type = work_request::work_type::transition;
     } else if (update_type == "Exiting")
       connection_update(false);
     else if (update_type == "TransitionDurationChanged") {
-      std::lock_guard<std::mutex> guard(worker_m);
-      worker_queue.emplace(work_request::work_type::duration, val["new-duration"].asUInt());
-      worker_cv.notify_all();
+      nr = val["new-duration"].asUInt();
+      type = work_request::work_type::duration;
     } else if (update_type == "SourceCreated" || update_type == "SourceDestroyed") {
       if (val["sourceType"] == "scene") {
-        std::lock_guard<std::mutex> guard(worker_m);
-        worker_queue.emplace(update_type == "SourceCreated" ? work_request::work_type::new_scene : work_request::work_type::delete_scene, 0, std::vector{ val["sourceName"].asString() });
-        worker_cv.notify_all();
-      }
+        vs.emplace_back(val["sourceName"].asString());
+        type = update_type == "SourceCreated" ? work_request::work_type::new_scene : work_request::work_type::delete_scene;
+      } else
+        return;
     } else if (update_type == "RecordingStarted" || update_type == "RecordingStopped") {
-      std::lock_guard<std::mutex> guard(worker_m);
-      worker_queue.emplace(work_request::work_type::recording, update_type == "RecordingStarted", std::vector{ val["recordingFilename"].asString() });
-      worker_cv.notify_all();
+      vs.emplace_back(val["recordingFilename"].asString());
+      nr = update_type == "RecordingStarted";
+      type = work_request::work_type::recording;
     } else if (update_type == "StreamStarted" || update_type == "StreamStopped") {
-      std::lock_guard<std::mutex> guard(worker_m);
-      worker_queue.emplace(work_request::work_type::streaming, update_type == "StreamStarted");
-      worker_cv.notify_all();
+      nr = update_type == "StreamStarted";
+      type = work_request::work_type::streaming;
     } else if (update_type == "ScenesChanged") {
-      std::vector<std::string> newscenes;
       for (auto& s : val["scenes"])
-        newscenes.emplace_back(s["name"].asString());
-      std::lock_guard<std::mutex> guard(worker_m);
-      worker_queue.emplace(work_request::work_type::sceneschanged, 0, newscenes);
-      worker_cv.notify_all();
+        vs.emplace_back(s["name"].asString());
+      type = work_request::work_type::sceneschanged;
     } else if (update_type == "StudioModeSwitched") {
-      std::lock_guard<std::mutex> guard(worker_m);
-      worker_queue.emplace(work_request::work_type::studiomode, val["new-state"].asBool());
-      worker_cv.notify_all();
+      nr = val["new-state"].asBool();
+      type = work_request::work_type::studiomode;
     } else if (update_type == "SwitchScenes") {
-      std::vector<std::string> vs{ val["scene-name"].asString() };
+      vs.emplace_back(val["scene-name"].asString());
       for (const auto& s : val["sources"]) {
         vs.emplace_back(s["name"].asString());
         vs.emplace_back(s["render"].asBool() ? "true" : "false");
       }
-      std::lock_guard<std::mutex> guard(worker_m);
-      worker_queue.emplace(work_request::work_type::scenecontent, 0, std::move(vs));
-      worker_cv.notify_all();
+      type = work_request::work_type::scenecontent;
     } else if (update_type == "SceneItemVisibilityChanged") {
-      std::vector<std::string> vs{ val["scene-name"].asString(), val["item-name"].asString(), val["item-visible"].asString() };
-      std::lock_guard<std::mutex> guard(worker_m);
-      worker_queue.emplace(work_request::work_type::visible, 0, std::move(vs));
-      worker_cv.notify_all();
+      vs.emplace_back(val["scene-name"].asString());
+      vs.emplace_back(val["item-name"].asString());
+      vs.emplace_back(val["item-visible"].asString());
+      type = work_request::work_type::visible;
     } else if (update_type == "SceneItemTransformChanged") {
-      std::vector<std::string> vs{ val["scene-name"].asString(), val["item-name"].asString(), val["transform"]["visible"].asString() };
-      std::lock_guard<std::mutex> guard(worker_m);
-      worker_queue.emplace(work_request::work_type::visible, 0, std::move(vs));
-      worker_cv.notify_all();
+      vs.emplace_back(val["scene-name"].asString());
+      vs.emplace_back(val["item-name"].asString());
+      vs.emplace_back(val["transform"]["visible"].asString());
+      type = work_request::work_type::visible;
     } else if (update_type == "SourceRenamed") {
-      std::vector<std::string> vs{ val["previousName"].asString(), val["newName"].asString() };
-      std::lock_guard<std::mutex> guard(worker_m);
-      worker_queue.emplace(work_request::work_type::sourcename, 0, std::move(vs));
-      worker_cv.notify_all();
+      vs.emplace_back(val["previousName"].asString());
+      vs.emplace_back(val["newName"].asString());
+      type = work_request::work_type::sourcename;
     } else if (update_type == "TransitionEnd") {
-      std::vector<std::string> vs{ val["to-scene"].asString(), val["name"].asString() };
-      std::lock_guard<std::mutex> guard(worker_m);
-      worker_queue.emplace(work_request::work_type::transitionend, 0, std::move(vs));
-      worker_cv.notify_all();
+      vs.emplace_back(val["to-scene"].asString());
+      vs.emplace_back(val["name"].asString());
+      type = work_request::work_type::transitionend;
     } else if (update_type == "SourceOrderChanged") {
-      std::vector<std::string> vs{ val["scene-name"].asString() };
+      vs.emplace_back(val["scene-name"].asString());
       for (const auto& s : val["scene-items"])
         vs.emplace(vs.begin() + 1, s["source-name"].asString());
-      std::lock_guard<std::mutex> guard(worker_m);
-      worker_queue.emplace(work_request::work_type::sourceorder, 0, std::move(vs));
-      worker_cv.notify_all();
-    } else if (log_unknown_events)
-      std::cout << "info::callback unhandled event = " << val << std::endl;
+      type = work_request::work_type::sourceorder;
+    } else {
+      if (log_unknown_events)
+        std::cout << "info::callback unhandled event = " << val << std::endl;
+      return;
+    }
+
+    std::lock_guard<std::mutex> guard(worker_m);
+    worker_queue.emplace(type, nr, std::move(vs));
+    worker_cv.notify_all();
   }
 
 
