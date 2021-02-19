@@ -10,12 +10,12 @@
    inkscape:export-ydpi="23.02"
    inkscape:export-xdpi="23.02"
    inkscape:export-filename="/home/drepper/devel/streamdeckd/color+.png"
-   width="211.81735mm"
-   height="210.49442mm"
-   viewBox="0 0 211.81735 210.49442"
+   width="160"
+   height="160"
+   viewBox="0 0 42.333333 42.333334"
    version="1.1"
    id="svg8"
-   inkscape:version="1.0 (4035a4fb49, 2020-05-01)"
+   inkscape:version="1.0.2 (e86c870879, 2021-01-15)"
    sodipodi:docname="color+.svg">
   <defs
      id="defs2" />
@@ -26,9 +26,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="1.979899"
-     inkscape:cx="255.12463"
-     inkscape:cy="454.20164"
+     inkscape:zoom="7.9858872"
+     inkscape:cx="7.1932304"
+     inkscape:cy="80.717745"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      inkscape:document-rotation="0"
@@ -40,8 +40,9 @@
      inkscape:window-width="3045"
      inkscape:window-height="2035"
      inkscape:window-x="332"
-     inkscape:window-y="138"
-     inkscape:window-maximized="0">
+     inkscape:window-y="88"
+     inkscape:window-maximized="0"
+     units="px">
     <inkscape:grid
        type="xygrid"
        id="grid833"
@@ -56,7 +57,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title />
+        <dc:title></dc:title>
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -66,11 +67,11 @@
      id="layer1"
      transform="translate(10.261794,-8.523618)">
     <circle
-       style="fill:#aaaaff;fill-opacity:0.99876821;stroke:#aaaaff;stroke-width:4;stroke-miterlimit:4;stroke-dasharray:none"
+       style="fill:#aaaaff;fill-opacity:0.998768;stroke:#aaaaff;stroke-width:1;stroke-miterlimit:4;stroke-dasharray:none"
        id="path835"
-       cx="-12.902467"
-       cy="148.26776"
-       r="48"
+       cx="-13.283292"
+       cy="28.417822"
+       r="12"
        transform="rotate(-45)" />
   </g>
 </svg>

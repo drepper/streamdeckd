@@ -11,6 +11,12 @@
 #include "buttontext.hh"
 
 using namespace std::string_literals;
+using namespace std::literals::chrono_literals;
+
+
+static_assert(__cpp_static_assert >= 200410L, "extended static_assert missing");
+static_assert(__cpp_lib_string_udls >= 201304);
+static_assert(__cpp_lib_chrono_udls >= 201304);
 
 
 // in main.cc
@@ -55,6 +61,8 @@ namespace obs {
         icon = i->is_recording ? &icon1 : &icon2;
       else if (keyop == keyop_type::stream)
         icon = i->is_streaming ? &icon1 : &icon2;
+      else if (keyop == keyop_type::ftb && i->ftb.active())
+        icon = &i->ftb.get();
       else if (i->studio_mode)
         icon = &icon1;
     }
@@ -191,7 +199,7 @@ namespace obs {
         return;
       }
     }
-    setkey(page, row, column, keyop == keyop_type::live_scene ? i->live_unused_icon : (i->studio_mode ? i->preview_unused_icon : i->obsicon));
+    setkey(page, row, column, keyop == keyop_type::live_scene ? i->live_unused_icon : (! i->connected || i->studio_mode ? i->preview_unused_icon : i->obsicon));
   }
 
 
@@ -218,8 +226,9 @@ namespace obs {
         }
         return;
       }
-    }
-    setkey(page, row, column, icon2);
+      setkey(page, row, column, icon2);
+    } else
+      setkey(page, row, column, i->transition_unused_icon);
   }
 
 
@@ -254,7 +263,10 @@ namespace obs {
   info::info(const libconfig::Setting& config, ftlibrary& ftobj_)
   : ftobj(ftobj_), im_black("black"), im_white("white"), im_darkgray("darkgray"),
     obsicon(find_image("obs.png")), live_unused_icon(find_image("scene_live_unused.png")), preview_unused_icon(find_image("scene_preview_unused.png")),
-    source_unused_icon(find_image("source_unused.png")),
+    source_unused_icon(find_image("source_unused.png")), transition_unused_icon(find_image("transition_unused.png")),
+    ftb { .icons = { find_image("ftb-0.png"), find_image("ftb-12.png"), find_image("ftb-25.png"), find_image("ftb-37.png"),
+                     find_image("ftb-50.png"), find_image("ftb-62.png"), find_image("ftb-75.png"), find_image("ftb-87.png"),
+                     find_image("ftb-100.png") } },
     obsfont(config.exists("font") ? std::string(config["font"]) : "Arial"s)
   {
     if (config.exists("server"))
@@ -296,10 +308,25 @@ namespace obs {
   }
 
 
-  std::optional<work_request> info::get_request()
+  work_request info::get_request()
   {
     std::unique_lock<std::mutex> m(worker_m);
     worker_cv.wait(m, [this]{ return ! worker_queue.empty(); });
+    auto req = std::move(worker_queue.front());
+    worker_queue.pop();
+    return req;
+  }
+
+
+  std::optional<work_request> info::get_request(const std::chrono::time_point<timeout_clock>& to)
+  {
+    std::unique_lock<std::mutex> m(worker_m);
+    while (worker_queue.empty())
+      if (worker_cv.wait_until(m, to) == std::cv_status::timeout) {
+        if (worker_queue.empty())
+          return std::nullopt;
+        break;
+      }
     auto req = std::move(worker_queue.front());
     worker_queue.pop();
     return req;
@@ -344,17 +371,35 @@ namespace obs {
 
   void info::worker_thread()
   {
+    static constexpr auto cycle_time = 200ms;
+
     get_session_data();
 
+    auto now = timeout_clock::now();
+    auto to = now + cycle_time;
+
+    Json::Value batch;
     while (! terminate) {
-      auto req = get_request();
+      work_request req;
+      if (ftb.active()) {
+        auto oreq = get_request(to);
 
-      if (! req)
-        continue;
+        now = timeout_clock::now();
+        if (now >= to) {
+          ++ftb;
+          button_update(button_class::ftb);
+          to += cycle_time;
+        }
 
-      Json::Value batch;
+        if (! oreq)
+          continue;
+
+        req = std::move(*oreq);
+      } else
+        req = get_request();
+
       Json::Value d;
-      switch(req->type) {
+      switch(req.type) {
       case work_request::work_type::none:
         break;
       case work_request::work_type::new_session:
@@ -368,8 +413,8 @@ namespace obs {
           auto& old_live = get_current_scene();
           auto& old_preview = get_current_preview();
 
-          current_scene = req->names[0];
-          current_preview = req->names[1];
+          current_scene = req.names[0];
+          current_preview = req.names[1];
           auto& new_live = get_current_scene();
           auto& new_preview = get_current_preview();
 
@@ -393,21 +438,21 @@ namespace obs {
         break;
       case work_request::work_type::scenecontent:
         if (! studio_mode) {
-          if (req->names[0] != current_scene)
+          if (req.names[0] != current_scene)
             // XYZ To do.  Should not happen but can be rectified by requesting scene content
             abort();
           else
-            req->names.erase(req->names.begin());
-          current_sources = std::move(req->names);
+            req.names.erase(req.names.begin());
+          current_sources = std::move(req.names);
           button_update(button_class::sources);
         }
         break;
       case work_request::work_type::visible:
-        assert(req->names.size() == 3);
-        if (req->names[0] == (studio_mode ? current_preview : current_scene)) {
+        assert(req.names.size() == 3);
+        if (req.names[0] == (studio_mode ? current_preview : current_scene)) {
           for (size_t j = 0; j < current_sources.size(); j += 2)
-            if (current_sources[j] == req->names[1]) {
-              current_sources[j + 1] = std::move(req->names[2]);
+            if (current_sources[j] == req.names[1]) {
+              current_sources[j + 1] = std::move(req.names[2]);
               for (auto& p : source_buttons)
                 if (p.second.nr == j / 2 + 1u)
                   p.second.show_icon();
@@ -419,7 +464,7 @@ namespace obs {
         {
           auto& old_preview = get_current_preview();
 
-          current_preview = req->names[0];
+          current_preview = req.names[0];
           auto& new_preview = get_current_preview();
 
           if (old_preview.nr != new_preview.nr)
@@ -428,8 +473,8 @@ namespace obs {
                 p.second.show_icon();
 
           if (studio_mode) {
-            req->names.erase(req->names.begin());
-            current_sources = std::move(req->names);
+            req.names.erase(req.names.begin());
+            current_sources = std::move(req.names);
             button_update(button_class::sources);
           }
         }
@@ -437,7 +482,7 @@ namespace obs {
       case work_request::work_type::transition:
         if (! ignore_next_transition_change) {
           auto& old_transition = get_current_transition();
-          current_transition = req->names[0];
+          current_transition = req.names[0];
           auto& new_transition = get_current_transition();
           for (auto& p : transition_buttons)
             if (p.second.nr == old_transition.nr || p.second.nr == new_transition.nr)
@@ -446,7 +491,7 @@ namespace obs {
         break;
       case work_request::work_type::new_scene:
         {
-          auto& name = req->names[0];
+          auto& name = req.names[0];
           unsigned nr = 1 + scenes.size();
           scenes.emplace(std::piecewise_construct, std::forward_as_tuple(name), std::forward_as_tuple(nr, name));
           auto rlive = scene_live_buttons.equal_range(nr);
@@ -459,7 +504,7 @@ namespace obs {
         break;
       case work_request::work_type::delete_scene:
         {
-          auto& name = req->names[0];
+          auto& name = req.names[0];
           if (auto it = scenes.find(name); it != scenes.end()) {
             auto nr = it->second.nr;
             scenes.erase(it);
@@ -476,10 +521,10 @@ namespace obs {
         }
         break;
       case work_request::work_type::recording:
-        is_recording = req->nr != 0;
+        is_recording = req.nr != 0;
         button_update(button_class::record);
         if (! is_recording && ! open.empty()) {
-          std::filesystem::path fname(req->names[0]);
+          std::filesystem::path fname(req.names[0]);
           static const char pattern[] = "%URL%";
           auto cmd = open;
           if (auto n = cmd.find(pattern); n != std::string::npos)
@@ -488,13 +533,14 @@ namespace obs {
         }
         break;
       case work_request::work_type::streaming:
-        is_streaming = req->nr != 0;
+        is_streaming = req.nr != 0;
         button_update(button_class::record);
         break;
       case work_request::work_type::sceneschanged:
         scenes.clear();
-        for (auto& s : req->names)
+        for (auto& s : req.names)
           scenes.emplace(std::piecewise_construct, std::forward_as_tuple(s), std::forward_as_tuple(1 + scenes.size(), s));
+        batch.clear();
         batch["request-type"] = "ExecuteBatch";
         d["request-type"] = "GetCurrentScene";
         batch["requests"].append(d);
@@ -511,7 +557,7 @@ namespace obs {
         button_update(button_class::live | button_class::preview);
         break;
       case work_request::work_type::studiomode:
-        studio_mode = req->nr;
+        studio_mode = req.nr;
         d["request-type"] = studio_mode ? "GetPreviewScene" : "GetCurrentScene";
         if (auto res = obsws::call(d); res["status"] == "ok") {
           if (studio_mode)
@@ -526,8 +572,8 @@ namespace obs {
         break;
       case work_request::work_type::sourcename:
         for (size_t i = 0; 2 * i < current_sources.size(); ++i)
-          if (current_sources[i] == req->names[0]) {
-            current_sources[i] = req->names[1];
+          if (current_sources[i] == req.names[0]) {
+            current_sources[i] = req.names[1];
             for (auto& e : source_buttons)
               if (e.second.nr == 1 + i)
                 e.second.show_icon();
@@ -535,8 +581,9 @@ namespace obs {
           }
         break;
       case work_request::work_type::transitionend:
-        if (ignore_next_transition_change && req->names[1] == "Cut") {
+        if (ignore_next_transition_change && req.names[1] == "Cut") {
           ignore_next_transition_change = false;
+          batch.clear();
           batch["request-type"] = "ExecuteBatch";
           d["request-type"] = "SetCurrentTransition";
           d["transition-name"] = current_transition;
@@ -550,22 +597,22 @@ namespace obs {
         break;
       case work_request::work_type::duration:
         if (! ignore_next_transition_change) {
-          current_duration_ms = req->nr;
+          current_duration_ms = req.nr;
           for (auto& b : auto_buttons)
             b.show_icon();
         }
         break;
       case work_request::work_type::sourceorder:
-        if ((studio_mode && req->names[0] == current_preview) || (!studio_mode && req->names[0] == current_scene)) {
-          req->names.erase(req->names.begin());
-          auto it = req->names.begin();
-          while (it != req->names.end()) {
+        if ((studio_mode && req.names[0] == current_preview) || (!studio_mode && req.names[0] == current_scene)) {
+          req.names.erase(req.names.begin());
+          auto it = req.names.begin();
+          while (it != req.names.end()) {
             auto it2 = std::find(current_sources.begin(), current_sources.end(), *it);
             assert(it2 != current_sources.end());
-            it = req->names.emplace(it + 1, *(it2 + 1));
+            it = req.names.emplace(it + 1, std::move(*(it2 + 1)));
             ++it;
           }
-          current_sources = std::move(req->names);
+          current_sources = std::move(req.names);
           button_update(button_class::sources);
         }
         break;

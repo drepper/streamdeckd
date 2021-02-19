@@ -1,6 +1,7 @@
 #ifndef _OBS_HH
 #define _OBS_HH 1
 
+#include <chrono>
 #include <condition_variable>
 #include <functional>
 #include <list>
@@ -209,7 +210,9 @@ namespace obs {
     bool created_ws = false;
     bool connected = false;
     std::queue<work_request> worker_queue;
-    std::optional<work_request> get_request();
+    work_request get_request();
+    using timeout_clock = std::chrono::system_clock;
+    std::optional<work_request> get_request(const std::chrono::time_point<timeout_clock>& to);
 
     std::condition_variable worker_cv;
     std::mutex worker_m;
@@ -251,6 +254,21 @@ namespace obs {
     const Magick::Image live_unused_icon;
     const Magick::Image preview_unused_icon;
     const Magick::Image source_unused_icon;
+    const Magick::Image transition_unused_icon;
+
+    struct ftb_handler {
+      std::vector<Magick::Image> icons;
+      int cycle = -1;
+
+      bool active() const { return cycle >= 0; }
+      void operator++() { if (size_t(++cycle) == 2 * icons.size()) cycle = 0; }
+      operator int() const { return cycle; }
+
+      void start() { cycle = 0; }
+      void stop() { cycle = -1; }
+
+      const Magick::Image& get() const { return icons[size_t(cycle) >= icons.size() ? (2 * icons.size() - 1 - cycle) : cycle]; }
+    } ftb;
 
     const std::string obsfont;
   };

@@ -11,18 +11,18 @@
    inkscape:export-xdpi="23.02"
    inkscape:export-filename="/home/drepper/devel/streamdeckd/color-.png"
    sodipodi:docname="color-.svg"
-   inkscape:version="1.0 (4035a4fb49, 2020-05-01)"
+   inkscape:version="1.0.2 (e86c870879, 2021-01-15)"
    id="svg8"
    version="1.1"
-   viewBox="0 0 211.81735 210.49442"
-   height="210.49442mm"
-   width="211.81735mm">
+   viewBox="0 0 42.333333 42.333334"
+   height="160"
+   width="160">
   <defs
      id="defs2" />
   <sodipodi:namedview
      inkscape:window-maximized="0"
-     inkscape:window-y="318"
-     inkscape:window-x="1176"
+     inkscape:window-y="88"
+     inkscape:window-x="4308"
      inkscape:window-height="2035"
      inkscape:window-width="3045"
      fit-margin-bottom="0"
@@ -33,15 +33,16 @@
      inkscape:document-rotation="0"
      inkscape:current-layer="layer1"
      inkscape:document-units="px"
-     inkscape:cy="456.94951"
-     inkscape:cx="226.66062"
-     inkscape:zoom="1.4"
+     inkscape:cy="523.44375"
+     inkscape:cx="229.7514"
+     inkscape:zoom="1.1356645"
      inkscape:pageshadow="2"
      inkscape:pageopacity="0.0"
      borderopacity="1.0"
      bordercolor="#666666"
      pagecolor="#ffffff"
-     id="base">
+     id="base"
+     units="px">
     <inkscape:grid
        originy="-8.523618"
        originx="10.261794"
@@ -56,7 +57,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title />
+        <dc:title></dc:title>
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -66,11 +67,11 @@
      inkscape:groupmode="layer"
      inkscape:label="Layer 1">
     <circle
-       transform="rotate(-45)"
-       r="48"
-       cy="148.26776"
-       cx="-12.902467"
+       transform="matrix(0.70710515,-0.70710842,0.70710515,0.70710842,0,0)"
+       r="11.999973"
+       cy="28.417751"
+       cx="-13.283268"
        id="path835"
-       style="fill:#ff6600;fill-opacity:1;stroke:#ff6600;stroke-width:4;stroke-miterlimit:4;stroke-dasharray:none" />
+       style="fill:#ff6600;fill-opacity:1;stroke:#ff6600;stroke-width:0.999998;stroke-miterlimit:4;stroke-dasharray:none" />
   </g>
 </svg>
