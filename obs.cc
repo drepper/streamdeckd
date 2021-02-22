@@ -35,15 +35,15 @@ namespace obs {
   } // anonymous namespace;
 
 
-  button::button(unsigned nr_, set_key_image_cb setkey_, info* i_, unsigned page_, unsigned row_, unsigned column_, std::string& icon1_, std::string& icon2_, keyop_type keyop_)
-  : nr(nr_), setkey(setkey_), i(i_), page(page_), row(row_), column(column_), icon1(find_image(icon1_)), icon2(find_image(icon2_)), keyop(keyop_)
+  button::button(unsigned nr_, set_key_image_cb setkey_image_, set_key_handle_cb setkey_handle_, info* i_, unsigned page_, unsigned row_, unsigned column_, int icon1_, int icon2_, keyop_type keyop_)
+  : nr(nr_), setkey_image(setkey_image_), setkey_handle(setkey_handle_), i(i_), page(page_), row(row_), column(column_), icon1(icon1_), icon2(icon2_), keyop(keyop_)
   {
   }
 
 
   void button::show_icon()
   {
-    auto icon = &i->obsicon;
+    auto icon = i->obsicon;
 
     if (i->connected) {
       // std::cout << "update connected\n";
@@ -54,20 +54,20 @@ namespace obs {
             active = i->get_current_scene().nr == nr;
           else
             active = i->get_current_preview().nr == nr;
-          icon = active ? &icon1 : &icon2;
+          icon = active ? icon1 : icon2;
         }
         // else std::cout << "scene out of range\n";
       } else if (keyop == keyop_type::record)
-        icon = i->is_recording ? &icon1 : &icon2;
+        icon = i->is_recording ? icon1 : icon2;
       else if (keyop == keyop_type::stream)
-        icon = i->is_streaming ? &icon1 : &icon2;
+        icon = i->is_streaming ? icon1 : icon2;
       else if (keyop == keyop_type::ftb && i->ftb.active())
-        icon = &i->ftb.get();
+        icon = i->ftb.get();
       else if (i->studio_mode)
-        icon = &icon1;
+        icon = icon1;
     }
 
-    setkey(page, row, column, *icon);
+    setkey_handle(page, row, column, icon);
   }
 
 
@@ -163,15 +163,15 @@ namespace obs {
   void auto_button::show_icon()
   {
     if (i->connected && i->studio_mode) {
-      font_render<render_to_image> renderobj(fontobj, icon1, 0.8, 0.3);
+      font_render<render_to_image> renderobj(fontobj, background, 0.8, 0.3);
       auto s = std::to_string(duration_ms / 1000.0);
       if (s.size() == 1)
         s += ".0";
       else if (s.size() > 3)
         s.erase(3);
-      setkey(page, row, column, renderobj.draw(s, color, std::get<0>(center), std::get<1>(center)));
+      setkey_image(page, row, column, renderobj.draw(s, color, std::get<0>(center), std::get<1>(center)));
     } else
-      setkey(page, row, column, i->obsicon);
+      setkey_handle(page, row, column, i->obsicon);
   }
 
 
@@ -190,16 +190,16 @@ namespace obs {
         }
 
         if ((keyop == keyop_type::live_scene && i->get_current_scene().nr == nr) || (keyop == keyop_type::preview_scene && i->get_current_preview().nr == nr)) {
-          font_render<render_to_image> renderobj(fontobj, icon1, 0.8, 0.8);
-          setkey(page, row, column, renderobj.draw(vs, keyop == keyop_type::live_scene ? i->im_white : i->im_black, 0.5, 0.5));
+          font_render<render_to_image> renderobj(fontobj, background, 0.8, 0.8);
+          setkey_image(page, row, column, renderobj.draw(vs, keyop == keyop_type::live_scene ? i->im_white : i->im_black, 0.5, 0.5));
         } else {
-          font_render<render_to_image> renderobj(fontobj, icon2, 0.8, 0.8);
-          setkey(page, row, column, renderobj.draw(vs, i->im_darkgray, 0.5, 0.5));
+          font_render<render_to_image> renderobj(fontobj, background_off, 0.8, 0.8);
+          setkey_image(page, row, column, renderobj.draw(vs, i->im_darkgray, 0.5, 0.5));
         }
         return;
       }
     }
-    setkey(page, row, column, keyop == keyop_type::live_scene ? i->live_unused_icon : (! i->connected || i->studio_mode ? i->preview_unused_icon : i->obsicon));
+    setkey_handle(page, row, column, keyop == keyop_type::live_scene ? i->live_unused_icon : (! i->connected || i->studio_mode ? i->preview_unused_icon : i->obsicon));
   }
 
 
@@ -218,17 +218,17 @@ namespace obs {
         }
 
         if (i->get_current_transition().nr == nr) {
-          font_render<render_to_image> renderobj(fontobj, icon1, 0.8, 0.8);
-          setkey(page, row, column, renderobj.draw(vs, i->im_black, 0.5, 0.5));
+          font_render<render_to_image> renderobj(fontobj, background, 0.8, 0.8);
+          setkey_image(page, row, column, renderobj.draw(vs, i->im_black, 0.5, 0.5));
         } else {
-          font_render<render_to_image> renderobj(fontobj, icon2, 0.8, 0.8);
-          setkey(page, row, column, renderobj.draw(vs, i->im_darkgray, 0.5, 0.5));
+          font_render<render_to_image> renderobj(fontobj, background_off, 0.8, 0.8);
+          setkey_image(page, row, column, renderobj.draw(vs, i->im_darkgray, 0.5, 0.5));
         }
         return;
       }
-      setkey(page, row, column, icon2);
+      setkey_handle(page, row, column, icon2);
     } else
-      setkey(page, row, column, i->transition_unused_icon);
+      setkey_handle(page, row, column, i->transition_unused_icon);
   }
 
 
@@ -247,26 +247,31 @@ namespace obs {
         }
 
         if (i->current_sources[idx + 1] == "true") {
-          font_render<render_to_image> renderobj(fontobj, icon1, 0.8, 0.8);
-          setkey(page, row, column, renderobj.draw(vs, i->im_black, 0.5, 0.5));
+          font_render<render_to_image> renderobj(fontobj, background, 0.8, 0.8);
+          setkey_image(page, row, column, renderobj.draw(vs, i->im_black, 0.5, 0.5));
         } else {
-          font_render<render_to_image> renderobj(fontobj, icon2, 0.8, 0.8);
-          setkey(page, row, column, renderobj.draw(vs, i->im_darkgray, 0.5, 0.5));
+          font_render<render_to_image> renderobj(fontobj, background_off, 0.8, 0.8);
+          setkey_image(page, row, column, renderobj.draw(vs, i->im_darkgray, 0.5, 0.5));
         }
         return;
       }
     }
-    setkey(page, row, column, i->source_unused_icon);
+    setkey_handle(page, row, column, i->source_unused_icon);
   }
 
 
-  info::info(const libconfig::Setting& config, ftlibrary& ftobj_)
-  : ftobj(ftobj_), im_black("black"), im_white("white"), im_darkgray("darkgray"),
-    obsicon(find_image("obs.png")), live_unused_icon(find_image("scene_live_unused.png")), preview_unused_icon(find_image("scene_preview_unused.png")),
-    source_unused_icon(find_image("source_unused.png")), transition_unused_icon(find_image("transition_unused.png")),
-    ftb { .icons = { find_image("ftb-0.png"), find_image("ftb-12.png"), find_image("ftb-25.png"), find_image("ftb-37.png"),
-                     find_image("ftb-50.png"), find_image("ftb-62.png"), find_image("ftb-75.png"), find_image("ftb-87.png"),
-                     find_image("ftb-100.png") } },
+  info::info(const libconfig::Setting& config, ftlibrary& ftobj_, register_image_cb register_image_)
+  : register_image(register_image_), ftobj(ftobj_), im_black("black"), im_white("white"), im_darkgray("darkgray"),
+    obsicon(register_image(find_image("obs.png"))),
+    live_unused_icon(register_image(find_image("scene_live_unused.png"))),
+    preview_unused_icon(register_image(find_image("scene_preview_unused.png"))),
+    source_unused_icon(register_image(find_image("source_unused.png"))),
+    transition_unused_icon(register_image(find_image("transition_unused.png"))),
+    ftb { .icons = { register_image(find_image("ftb-0.png")), register_image(find_image("ftb-12.png")),
+                     register_image(find_image("ftb-25.png")), register_image(find_image("ftb-37.png")),
+                     register_image(find_image("ftb-50.png")), register_image(find_image("ftb-62.png")),
+                     register_image(find_image("ftb-75.png")), register_image(find_image("ftb-87.png")),
+                     register_image(find_image("ftb-100.png")) } },
     obsfont(config.exists("font") ? std::string(config["font"]) : "Arial"s)
   {
     if (config.exists("server"))
@@ -769,24 +774,26 @@ namespace obs {
   }
 
 
-  button* info::parse_key(set_key_image_cb setkey, unsigned page, unsigned row, unsigned column, const libconfig::Setting& config)
+  button* info::parse_key(set_key_image_cb setkey_image, set_key_handle_cb setkey_handle, unsigned page, unsigned row, unsigned column, const libconfig::Setting& config)
   {
     if (! config.exists("function"))
       return nullptr;
 
     auto function = std::string(config["function"]);
-    std::string icon1;
-    std::string icon2;
-    config.lookupValue("icon1", icon1);
+    std::string icon1name;
+    std::string icon2name;
+    int icon1;
+    int icon2;
+    config.lookupValue("icon1", icon1name);
     if (config.exists("icon2"))
-      config.lookupValue("icon2", icon2);
+      config.lookupValue("icon2", icon2name);
     else
       icon2 = icon1;
     if (function == "scene-live"){
-      if (icon1.empty()) {
-        icon1 = "scene_live.png";
-        if (icon2.empty())
-          icon2 = "scene_live_off.png";
+      if (icon1name.empty()) {
+        icon1name = "scene_live.png";
+        if (icon2name.empty())
+          icon2name = "scene_live_off.png";
       }
       std::string font;
       if (config.exists("font"))
@@ -794,12 +801,12 @@ namespace obs {
       else
       	font = obsfont;
       unsigned nr = 1u + scene_live_buttons.size();
-      return &scene_live_buttons.emplace(nr, scene_button(nr, setkey, this, page, row, column, icon1, icon2, keyop_type::live_scene, ftobj, font))->second;
+      return &scene_live_buttons.emplace(nr, scene_button(nr, setkey_image, setkey_handle, this, page, row, column, find_image(icon1name), find_image(icon2name), keyop_type::live_scene, ftobj, font))->second;
     } else if (function == "scene-preview") {
-      if (icon1.empty()) {
-        icon1 = "scene_preview.png";
-        if (icon2.empty())
-          icon2 = "scene_preview_off.png";
+      if (icon1name.empty()) {
+        icon1name = "scene_preview.png";
+        if (icon2name.empty())
+          icon2name = "scene_preview_off.png";
       }
       std::string font;
       if (config.exists("font"))
@@ -807,14 +814,15 @@ namespace obs {
       else
       	font = obsfont;
       unsigned nr = 1u + scene_preview_buttons.size();
-      return &scene_preview_buttons.emplace(nr, scene_button(nr, setkey, this, page, row, column, icon1, icon2, keyop_type::preview_scene, ftobj, font))->second;
+      return &scene_preview_buttons.emplace(nr, scene_button(nr, setkey_image, setkey_handle, this, page, row, column, find_image(icon1name), find_image(icon2name), keyop_type::preview_scene, ftobj, font))->second;
     } else if (function == "scene-cut") {
-      if (icon1.empty())
-        icon1 = "cut.png";
-      return &cut_buttons.emplace_back(0, setkey, this, page, row, column, icon1, icon1, keyop_type::cut);
+      if (icon1name.empty())
+        icon1name = "cut.png";
+      icon1 = register_image(find_image(icon1name));
+      return &cut_buttons.emplace_back(0, setkey_image, setkey_handle, this, page, row, column, icon1, icon1, keyop_type::cut);
     } else if (function == "scene-auto") {
-      if (icon1.empty())
-        icon1 = "auto.png";
+      if (icon1name.empty())
+        icon1name = "auto.png";
       std::string font;
       if (config.exists("font"))
       	config.lookupValue("font", font);
@@ -838,16 +846,17 @@ namespace obs {
           }
         }
       }
-      return &auto_buttons.emplace_back(0, setkey, this, page, row, column, icon1, keyop_type::auto_rate, ftobj, font, color, std::move(center), current_duration_ms);
+      return &auto_buttons.emplace_back(0, setkey_image, setkey_handle, this, page, row, column, find_image(icon1name), keyop_type::auto_rate, ftobj, font, color, std::move(center), current_duration_ms);
     } else if (function == "scene-ftb") {
-      if (icon1.empty())
-        icon1 = icon2 = "ftb.png";
-      return &ftb_buttons.emplace_back(0, setkey, this, page, row, column, icon1, icon1, keyop_type::ftb);
+      if (icon1name.empty())
+        icon1name = "ftb.png";
+      icon1 = register_image(find_image(icon1name));
+      return &ftb_buttons.emplace_back(0, setkey_image, setkey_handle, this, page, row, column, icon1, icon1, keyop_type::ftb);
     } else if (function == "transition") {
-      if (icon1.empty()) {
-        icon1 = "transition.png";
-        if (icon2.empty())
-          icon2 = "transition_off.png";
+      if (icon1name.empty()) {
+        icon1name = "transition.png";
+        if (icon2name.empty())
+          icon2name = "transition_off.png";
       }
       std::string font;
       if (config.exists("font"))
@@ -855,12 +864,12 @@ namespace obs {
       else
       	font = obsfont;
       unsigned nr = 1u + transition_buttons.size();
-      return &transition_buttons.emplace(nr, transition_button(nr, setkey, this, page, row, column, icon1, icon2, keyop_type::transition, ftobj, font))->second;
+      return &transition_buttons.emplace(nr, transition_button(nr, setkey_image, setkey_handle, this, page, row, column, find_image(icon1name), find_image(icon2name), keyop_type::transition, ftobj, font))->second;
     } else if (function == "source") {
-      if (icon1.empty()) {
-        icon1 = "source.png";
-        if (icon2.empty())
-          icon2 = "source_off.png";
+      if (icon1name.empty()) {
+        icon1name = "source.png";
+        if (icon2name.empty())
+          icon2name = "source_off.png";
       }
       std::string font;
       if (config.exists("font"))
@@ -868,21 +877,32 @@ namespace obs {
       else
         font = obsfont;
       unsigned nr = 1u + source_buttons.size();
-      return &source_buttons.emplace(nr, source_button(nr, setkey, this, page, row, column, icon1, icon2, keyop_type::source, ftobj, font))->second;
+      icon1 = register_image(find_image(icon1name));
+      return &source_buttons.emplace(nr, source_button(nr, setkey_image, setkey_handle, this, page, row, column, find_image(icon1name), find_image(icon2name), keyop_type::source, ftobj, font))->second;
     } else if (function == "toggle-record") {
-      if (icon1.empty()) {
-        icon1 = "record.png";
-        if (icon2.empty())
-          icon2 = "record_off.png";
+      if (icon1name.empty()) {
+        icon1name = "record.png";
+        if (icon2name.empty())
+          icon2name = "record_off.png";
       }
-      return &record_buttons.emplace_back(0, setkey, this, page, row, column, icon1, icon2, keyop_type::record);
+      icon1 = register_image(find_image(icon1name));
+      if (icon1name == icon2name)
+        icon2 = icon1;
+      else
+        icon2 = register_image(find_image(icon2name));
+      return &record_buttons.emplace_back(0, setkey_image, setkey_handle, this, page, row, column, icon1, icon2, keyop_type::record);
     } else if (function == "toggle-stream") {
-      if (icon1.empty()) {
-        icon1 = "stream.png";
-        if (icon2.empty())
-          icon2 = "stream_off.png";
+      if (icon1name.empty()) {
+        icon1name = "stream.png";
+        if (icon2name.empty())
+          icon2name = "stream_off.png";
       }
-      return &record_buttons.emplace_back(0, setkey, this, page, row, column, icon1, icon2, keyop_type::stream);
+      icon1 = register_image(find_image(icon1name));
+      if (icon1name == icon2name)
+        icon2 = icon1;
+      else
+        icon2 = register_image(find_image(icon2name));
+      return &record_buttons.emplace_back(0, setkey_image, setkey_handle, this, page, row, column, icon1, icon2, keyop_type::stream);
     }
 
     return nullptr;

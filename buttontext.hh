@@ -30,7 +30,7 @@ struct render_to_image {
 
   bool goodenough(unsigned w, unsigned h) const;
 
-  Magick::Image& finish(Magick::Color foreground = Magick::Color("black"), double posx = 0.5, double posy = 0.5);
+  Magick::Image finish(Magick::Color foreground = Magick::Color("black"), double posx = 0.5, double posy = 0.5);
 
   void reset() {
     lines.clear();
@@ -43,7 +43,6 @@ private:
   Magick::Image background;
   unsigned targetwidth;
   unsigned targetheight;
-  Magick::Image image;
 
   double current_fontsize = 0;
   using experiment_type = std::tuple<double,unsigned,unsigned>;

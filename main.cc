@@ -292,7 +292,10 @@ namespace {
   private:
     static unsigned keyidx(unsigned page, unsigned k) { return page * 256 + k; }
 
-    void setkey(unsigned page, unsigned row, unsigned column, const Magick::Image& image);
+    void setkey(unsigned page, unsigned row, unsigned column, Magick::Image&& image);
+    void setkey(unsigned page, unsigned row, unsigned column, int handle);
+
+    int register_image(Magick::Image&& image);
 
     void handle_idle();
     bool prohibit_sleep() const {
@@ -336,13 +339,26 @@ namespace {
     if (! config.lookupValue("serial", serial))
       serial = "";
 
+    for (auto& d : ctx) {
+      if (! d->connected())
+        continue;
+
+      if (serial == "" || d->get_serial_number() == serial) {
+        dev = d.get();
+        d->reset();
+      }
+    }
+
+    if (dev == nullptr)
+      throw std::runtime_error("no device available");
+
     if (! config.lookupValue("pages", nrpages))
       nrpages = 1;
 
     if (config.exists("obs")) {
       auto& group = config.lookup("obs");
       if (group.isGroup())
-        obs = std::make_unique<obs::info>(group, ftobj);
+        obs = std::make_unique<obs::info>(group, ftobj, [this](Magick::Image&& image) { return register_image(std::move(image)); });
     }
 
     if (! config.lookupValue("brightness", brightness))
@@ -368,114 +384,112 @@ namespace {
         }
       }
 
-    for (auto& d : ctx) {
-      if (! d->connected())
-        continue;
+    try {
+      auto& keys = config.lookup("keys");
 
-      if (serial == "" || d->get_serial_number() == serial) {
-        dev = d.get();
-        d->reset();
+      nrpages = keys.getLength();
+      for (const auto& page : keys) {
+        unsigned pagenr = page.getIndex();
 
-        try {
-          auto& keys = config.lookup("keys");
+        for (unsigned k = 0; k < dev->key_count; ++k) {
+          auto row = 1u + k / dev->key_cols;
+          auto column = 1u + k % dev->key_cols;
+          auto keyname = "r"s + std::to_string(row) + "c"s + std::to_string(column);
+          if (! page.exists(keyname))
+            continue;
 
-          nrpages = keys.getLength();
-          for (const auto& page : keys) {
-            unsigned pagenr = page.getIndex();
+          unsigned kidx = keyidx(pagenr, k);
 
-            for (unsigned k = 0; k < d->key_count; ++k) {
-              auto row = 1u + k / d->key_cols;
-              auto column = 1u + k % d->key_cols;
-              auto keyname = "r"s + std::to_string(row) + "c"s + std::to_string(column);
-              if (! page.exists(keyname))
-                continue;
+          auto& key = page[keyname];
+          if (key.exists("type")) {
 
-              unsigned kidx = keyidx(pagenr, k);
+            if (std::string(key["type"]) == "keylight" && key.exists("function")) {
+              std::string serial;
+              bool has_serial = key.lookupValue("serial", serial);
 
-              auto& key = page[keyname];
-              if (key.exists("type")) {
-
-                if (std::string(key["type"]) == "keylight" && key.exists("function")) {
-                  std::string serial;
-                  bool has_serial = key.lookupValue("serial", serial);
-
-                  if (! has_keylights) {
-                    has_keylights = true;
-                    for (unsigned t = 0; t < 3; ++t) {
-                      keylights = keylightpp::discover();
-                      if (keylights.begin() != keylights.end())
-                        break;
-                      sleep(1);
-                    }
-                    if (keylights.begin() == keylights.end()) {
-                      has_keylights = false;
-                      continue;
-                    }
-                  }
-
-                  if (std::string(key["function"]) == "on/off")
-                    actions[kidx] = std::make_unique<keylight_toggle>(k, key, *d, has_serial, serial, keylights);
-                  else if (std::string(key["function"]) == "brightness+")
-                    actions[kidx] = std::make_unique<keylight_brightness>(k, key, *d, has_serial, serial, keylights, 5);
-                  else if (std::string(key["function"]) == "brightness-")
-                    actions[kidx] = std::make_unique<keylight_brightness>(k, key, *d, has_serial, serial, keylights, -5);
-                  else if (std::string(key["function"]) == "color+")
-                    actions[kidx] = std::make_unique<keylight_color>(k, key, *d, has_serial, serial, keylights, 250);
-                  else if (std::string(key["function"]) == "color-")
-                    actions[kidx] = std::make_unique<keylight_color>(k, key, *d, has_serial, serial, keylights, -250);
-                } else if (std::string(key["type"]) == "execute" && key.exists("command"))
-                  actions[kidx] = std::make_unique<execute>(k, key, *d, std::string(key["command"]));
-                else if (std::string(key["type"]) == "key" && key.exists("sequence")) {
-                  if (xdo == nullptr)
-                    xdo = xdo_new(nullptr);
-                  if (xdo != nullptr) {
-                    auto& seq = key.lookup("sequence");
-                    if (seq.isScalar())
-                      actions[kidx] = std::make_unique<keypress>(k, key, *d, std::string(seq), xdo);
-                    else if (seq.isList() && seq.getLength() > 0) {
-                      std::list<std::string> l;
-                      for (auto& sseq : seq) {
-                        if (! sseq.isScalar()) {
-                          l.clear();
-                          break;
-                        }
-                        l.emplace_back(std::string(sseq));
-                      }
-                      if (l.size() > 0)
-                        actions[kidx] = std::make_unique<keypress>(k, key, *d, std::move(l), xdo);
-                    }
-                  }
-                } else if (obs && std::string(key["type"]) == "obs") {
-                  if (auto b = obs->parse_key([this](unsigned page, unsigned row, unsigned column, const Magick::Image& image){ setkey(page, row, column, image); }, pagenr, row, column, key); b != nullptr)
-                    actions[kidx] = std::make_unique<obsaction>(k, key, *d, b);
-                } else if (std::string(key["type"]) == "nextpage")
-                  actions[kidx] = std::make_unique<pageaction>(k, key, *d, (pagenr + 1) % nrpages, pageaction::direction::right, *this);
-                else if (std::string(key["type"]) == "prevpage")
-                  actions[kidx] = std::make_unique<pageaction>(k, key, *d, (pagenr - 1 + nrpages) % nrpages, pageaction::direction::left, *this);
+              if (! has_keylights) {
+                has_keylights = true;
+                for (unsigned t = 0; t < 3; ++t) {
+                  keylights = keylightpp::discover();
+                  if (keylights.begin() != keylights.end())
+                    break;
+                  sleep(1);
+                }
+                if (keylights.begin() == keylights.end()) {
+                  has_keylights = false;
+                  continue;
+                }
               }
-            }
+
+              if (std::string(key["function"]) == "on/off")
+                actions[kidx] = std::make_unique<keylight_toggle>(k, key, *dev, has_serial, serial, keylights);
+              else if (std::string(key["function"]) == "brightness+")
+                actions[kidx] = std::make_unique<keylight_brightness>(k, key, *dev, has_serial, serial, keylights, 5);
+              else if (std::string(key["function"]) == "brightness-")
+                actions[kidx] = std::make_unique<keylight_brightness>(k, key, *dev, has_serial, serial, keylights, -5);
+              else if (std::string(key["function"]) == "color+")
+                actions[kidx] = std::make_unique<keylight_color>(k, key, *dev, has_serial, serial, keylights, 250);
+              else if (std::string(key["function"]) == "color-")
+                actions[kidx] = std::make_unique<keylight_color>(k, key, *dev, has_serial, serial, keylights, -250);
+            } else if (std::string(key["type"]) == "execute" && key.exists("command"))
+              actions[kidx] = std::make_unique<execute>(k, key, *dev, std::string(key["command"]));
+            else if (std::string(key["type"]) == "key" && key.exists("sequence")) {
+              if (xdo == nullptr)
+                xdo = xdo_new(nullptr);
+              if (xdo != nullptr) {
+                auto& seq = key.lookup("sequence");
+                if (seq.isScalar())
+                  actions[kidx] = std::make_unique<keypress>(k, key, *dev, std::string(seq), xdo);
+                else if (seq.isList() && seq.getLength() > 0) {
+                  std::list<std::string> l;
+                  for (auto& sseq : seq) {
+                    if (! sseq.isScalar()) {
+                      l.clear();
+                      break;
+                    }
+                    l.emplace_back(std::string(sseq));
+                  }
+                  if (l.size() > 0)
+                    actions[kidx] = std::make_unique<keypress>(k, key, *dev, std::move(l), xdo);
+                }
+              }
+            } else if (obs && std::string(key["type"]) == "obs") {
+              if (auto b = obs->parse_key([this](unsigned page, unsigned row, unsigned column, Magick::Image&& image){ setkey(page, row, column, std::move(image)); }, [this](unsigned page, unsigned row, unsigned column, int handle){ setkey(page, row, column, handle); }, pagenr, row, column, key); b != nullptr)
+                actions[kidx] = std::make_unique<obsaction>(k, key, *dev, b);
+            } else if (std::string(key["type"]) == "nextpage")
+              actions[kidx] = std::make_unique<pageaction>(k, key, *dev, (pagenr + 1) % nrpages, pageaction::direction::right, *this);
+            else if (std::string(key["type"]) == "prevpage")
+              actions[kidx] = std::make_unique<pageaction>(k, key, *dev, (pagenr - 1 + nrpages) % nrpages, pageaction::direction::left, *this);
           }
         }
-        catch (libconfig::SettingNotFoundException&) {
-          // No key settings.
-        }
-
-        d->set_brightness(brightness);
-        blankimg = d->register_image(find_image("blank.png"));
-        break;
       }
     }
+    catch (libconfig::SettingNotFoundException&) {
+      // No key settings.
+    }
 
-    if (dev == nullptr)
-      throw std::runtime_error("no device available");
+    dev->set_brightness(brightness);
+    blankimg = dev->register_image(find_image("blank.png"));
   }
 
 
+  int deck_config::register_image(Magick::Image&& image)
+  {
+    return dev->register_image(std::move(image));
+  }
 
-  void deck_config::setkey(unsigned page, unsigned row, unsigned column, const Magick::Image& image)
+
+  void deck_config::setkey(unsigned page, unsigned row, unsigned column, Magick::Image&& image)
   {
     if (page == current_page)
-      dev->set_key_image((row - 1u) * dev->key_cols + (column - 1u), image);
+      dev->set_key_image(row - 1u, column - 1u, std::move(image));
+  }
+
+
+  void deck_config::setkey(unsigned page, unsigned row, unsigned column, int handle)
+  {
+    if (page == current_page)
+      dev->set_key_image(row - 1u, column - 1u, handle);
   }
 
 

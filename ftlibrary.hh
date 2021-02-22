@@ -64,15 +64,15 @@ struct font_render {
   font_render(ftface& fontface_, Args... args);
 
   template<typename... Args>
-  Magick::Image& draw(const std::string& s, Args... args);
+  Magick::Image draw(const std::string& s, Args... args);
   template<typename... Args>
-  Magick::Image& draw(const std::vector<std::string>& vs, Args... args);
+  Magick::Image draw(const std::vector<std::string>& vs, Args... args);
 private:
   void call_render(double fontsize, FT_UInt dpi, const std::vector<utf8proc_int32_t>& wch);
   void call_render(double fontsize, FT_UInt dpi, const std::vector<std::vector<utf8proc_int32_t>>& wch);
 
   template<typename Strings, typename... Args>
-  Magick::Image& draw2(const Strings& vs, Args... args);
+  Magick::Image draw2(const Strings& vs, Args... args);
 
   ftface& fontface;
   render_type renderer;
@@ -162,7 +162,7 @@ bool convert_string(const std::string& s, std::vector<utf8proc_int32_t>& wbuf);
 
 template<typename T>
 template<typename Strings, typename... Args>
-Magick::Image& font_render<T>::draw2(const Strings& wbuf, Args... args)
+Magick::Image font_render<T>::draw2(const Strings& wbuf, Args... args)
 {
   auto [fontsize, dpi] = renderer.first_font_size();
   while (true) {
@@ -183,7 +183,7 @@ Magick::Image& font_render<T>::draw2(const Strings& wbuf, Args... args)
 
 template<typename T>
 template<typename... Args>
-Magick::Image& font_render<T>::draw(const std::string& s, Args... args)
+Magick::Image font_render<T>::draw(const std::string& s, Args... args)
 {
   std::vector<utf8proc_int32_t> wbuf;
   if (! convert_string(s, wbuf))
@@ -195,7 +195,7 @@ Magick::Image& font_render<T>::draw(const std::string& s, Args... args)
 
 template<typename T>
 template<typename... Args>
-Magick::Image& font_render<T>::draw(const std::vector<std::string>& vs, Args... args)
+Magick::Image font_render<T>::draw(const std::vector<std::string>& vs, Args... args)
 {
   std::vector<std::vector<utf8proc_int32_t>> vwbuf;
 

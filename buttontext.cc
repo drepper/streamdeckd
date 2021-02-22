@@ -112,9 +112,9 @@ bool render_to_image::goodenough(unsigned w, unsigned h) const
 }
 
 
-Magick::Image& render_to_image::finish(Magick::Color foreground, double posx, double posy)
+Magick::Image render_to_image::finish(Magick::Color foreground, double posx, double posy)
 {
-  image = background;
+  Magick::Image image(background);
   image.modifyImage();
 
   Magick::Pixels view(image);
