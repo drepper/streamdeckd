@@ -7,7 +7,7 @@ Source: https://github.com/drepper/streamdeckd/archive/streamdeckd-@VERSION@.tar
 License: GPLv2
 
 Requires: libstdc++
-BuildRequires: streamdeckpp-devel >= 1.5-1
+BuildRequires: streamdeckpp-devel >= 1.6-1
 BuildRequires: keylightpp-devel
 BuildRequires: libconfig-devel
 BuildRequires: cpprest-devel

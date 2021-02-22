@@ -99,7 +99,7 @@ namespace {
           return;
         iconname = default_icon;
       }
-      icon1 = find_image(iconname);
+      icon1 = dev.register_image(find_image(iconname));
     }
     virtual ~action() { }
 
@@ -113,7 +113,7 @@ namespace {
   protected:
     unsigned key;
     streamdeck::device_type& dev;
-    Magick::Image icon1;
+    int icon1;
   };
 
 
@@ -131,13 +131,13 @@ namespace {
       std::string icon1name;
       if (! setting.lookupValue("icon_on", icon1name))
         icon1name = "bulb_on.png";
-      icon1 = find_image(icon1name);
+      icon1 = dev.register_image(find_image(icon1name));
 
       if (nkeylights == 1) {
         std::string icon2name;
         if (! setting.lookupValue("icon_off", icon2name))
           icon2name = "bulb_off.png";
-        icon2 = find_image(icon2name);
+        icon2 = dev.register_image(find_image(icon2name));
       } else
         icon2 = icon1;
     }
@@ -162,7 +162,7 @@ namespace {
     const std::string serial;
     keylightpp::device_list_type& keylights;
     unsigned nkeylights;
-    Magick::Image icon2;
+    int icon2;
   };
 
 
@@ -323,12 +323,11 @@ namespace {
     std::map<unsigned,std::unique_ptr<action>> actions;
     std::unique_ptr<obs::info> obs;
     ftlibrary ftobj;
-    Magick::Image blankimg;
+    int blankimg;
   };
 
 
   deck_config::deck_config(const std::filesystem::path& conffile)
-  : blankimg(find_image("blank.png"))
   {
     libconfig::Config config;
     config.readFile(conffile.c_str());
@@ -462,6 +461,7 @@ namespace {
         }
 
         d->set_brightness(brightness);
+        blankimg = d->register_image(find_image("blank.png"));
         break;
       }
     }
