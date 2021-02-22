@@ -534,7 +534,8 @@ namespace obs {
           auto cmd = open;
           if (auto n = cmd.find(pattern); n != std::string::npos)
             cmd.replace(n, sizeof(pattern), "file://"s + fname.parent_path().string());
-          system(cmd.c_str());
+          auto _ = system(cmd.c_str());
+          (void)_;
         }
         break;
       case work_request::work_type::streaming:

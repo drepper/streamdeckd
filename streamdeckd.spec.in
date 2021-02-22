@@ -52,6 +52,8 @@ mkdir -p ${RPM_BUILD_ROOT}%{_prefix}
 %{_datadir}/icons/hicolor/scalable/apps/streamdeckd.svg
 
 %changelog
+* Mon Feb 23 2021 Ulrich Drepper <drepper@gmail.com> 2.2-1
+- cache icons when possible, enabled by the new streamdeckpp
 * Thu Feb 18 2021 Ulrich Drepper <drepper@gmail.com> 2.1-1
 - Handle disabled studio mode
 - Dim display when idle
