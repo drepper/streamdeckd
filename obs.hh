@@ -244,6 +244,7 @@ namespace obs {
     std::string current_scene;
     std::vector<std::string> current_sources;
     std::string current_preview;
+    std::string saved_preview;
     std::unordered_map<std::string,obs::transition> transitions;
     std::string current_transition;
     unsigned current_duration_ms;
