@@ -405,6 +405,8 @@ namespace obs {
           ++ftb;
           button_update(button_class::ftb);
           to += cycle_time;
+          if (to < now)
+            to = now + cycle_time;
         }
 
         if (! oreq)
