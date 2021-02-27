@@ -189,7 +189,6 @@ namespace obs {
     scene& get_current_scene();
     scene& get_current_preview();
     int get_current_duration() const { return current_duration_ms; }
-    scene& get_scene(const std::string& s);
     scene& get_preview(const std::string& s);
     transition& get_current_transition();
     std::string& get_scene_name(unsigned nr) { for (auto& p : scenes) if (p.second.nr == nr) return p.second.name; throw std::runtime_error("invalid scene number"); }
@@ -242,6 +241,7 @@ namespace obs {
 
     std::unordered_map<std::string,obs::scene> scenes;
     std::string current_scene;
+    std::string saved_scene;
     std::vector<std::string> current_sources;
     std::string current_preview;
     std::string saved_preview;
@@ -272,16 +272,16 @@ namespace obs {
 
     struct ftb_handler {
       std::vector<int> icons;
-      int cycle = -1;
+      std::atomic<int> cycle = -1;
 
       bool active() const { return cycle >= 0; }
-      void operator++() { if (size_t(++cycle) == 2 * icons.size()) cycle = 0; }
-      operator int() const { return cycle; }
+      void operator++() { if (cycle >= 0) { if (size_t(++cycle) == 2 * icons.size()) cycle = 0; } }
+      operator int() const { return cycle.load(); }
 
       void start() { cycle = 0; }
       void stop() { cycle = -1; }
 
-      int get() const { return icons[size_t(cycle) >= icons.size() ? (2 * icons.size() - 1 - cycle) : cycle]; }
+      int get() const { return icons[size_t(cycle) >= icons.size() ? int(2 * icons.size() - 1 - cycle) : int(cycle)]; }
     } ftb;
 
     const std::string obsfont;

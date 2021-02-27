@@ -61,8 +61,8 @@ namespace obs {
         icon = i->is_recording ? icon1 : icon2;
       else if (keyop == keyop_type::stream)
         icon = i->is_streaming ? icon1 : icon2;
-      else if (keyop == keyop_type::ftb && i->ftb.active())
-        icon = i->ftb.get();
+      else if (keyop == keyop_type::ftb)
+        icon = i->ftb.active() ? i->ftb.get() : icon1;
       else if (! i->ftb.active() && i->studio_mode)
         icon = icon1;
     }
@@ -76,7 +76,7 @@ namespace obs {
     if (! i->connected)
       return;
 
-    if (! i->studio_mode && keyop != keyop_type::live_scene && keyop != keyop_type::record && keyop != keyop_type::stream && keyop != keyop_type::source && keyop != keyop_type::transition)
+    if (! i->studio_mode && keyop != keyop_type::live_scene && keyop != keyop_type::record && keyop != keyop_type::stream && keyop != keyop_type::source && keyop != keyop_type::transition && keyop != keyop_type::ftb)
       return;
 
     Json::Value batch;
@@ -85,10 +85,21 @@ namespace obs {
 
     switch(keyop) {
     case keyop_type::live_scene:
-      if (! i->ftb.active() && nr <= i->scene_count()) {
-        d["request-type"] = "SetCurrentScene";
-        d["scene-name"] = i->get_scene_name(nr);
-        obsws::emit(d);
+      if (nr <= i->scene_count()) {
+        if (i->ftb.active()) {
+          if (! i->studio_mode && i->saved_scene != i->get_scene_name(nr)) {
+            auto& oldscene = i->scenes[i->saved_scene];
+            i->saved_scene = i->get_scene_name(nr);
+            for (auto& b : i->scene_live_buttons)
+              if (b.second.nr == oldscene.nr)
+                b.second.show_icon();
+            show_icon();
+          }
+        } else {
+          d["request-type"] = "SetCurrentScene";
+          d["scene-name"] = i->get_scene_name(nr);
+          obsws::emit(d);
+        }
       }
       break;
     case keyop_type::preview_scene:
@@ -116,29 +127,55 @@ namespace obs {
       }
       break;
     case keyop_type::ftb:
-      batch["request-type"] = "ExecuteBatch";
       i->ignore_next_transition_change = true;
       std::cout << "FTB is " << (i->ftb.active() ? "" : "not") << " active\n";
       if (! i->ftb.active()) {
         i->saved_preview = i->current_preview;
-        d.clear();
-        d["request-type"] = "SetPreviewScene";
-        d["scene-name"] = "Black";
-        batch["requests"].append(d);
-        d.clear();
-        d["request-type"] = "TransitionToProgram";
-        d["with-transition"]["name"] = "Fade";
-        d["with-transition"]["duration"] = 1000;
-        batch["requests"].append(d);
-        obsws::emit(batch);
+        i->saved_scene = i->current_scene;
+        if (i->studio_mode) {
+          batch["request-type"] = "ExecuteBatch";
+          d.clear();
+          d["request-type"] = "SetPreviewScene";
+          d["scene-name"] = "Black";
+          batch["requests"].append(d);
+          d.clear();
+          d["request-type"] = "TransitionToProgram";
+          d["with-transition"]["name"] = "Fade";
+          d["with-transition"]["duration"] = 1000;
+          batch["requests"].append(d);
+          obsws::emit(batch);
+        } else {
+          d.clear();
+          d["request-type"] = "SetCurrentScene";
+          d["scene-name"] = "Black";
+          obsws::emit(d);
+        }
         i->ftb.start();
       } else {
-        d.clear();
-        d["request-type"] = "TransitionToProgram";
-        d["with-transition"]["name"] = "Fade";
-        d["with-transition"]["duration"] = 1000;
-        obsws::emit(d);
         i->ftb.stop();
+        if (i->studio_mode) {
+          d.clear();
+          d["request-type"] = "TransitionToProgram";
+          d["with-transition"]["name"] = "Fade";
+          d["with-transition"]["duration"] = 1000;
+          obsws::emit(d);
+        } else {
+          batch["request-type"] = "ExecuteBatch";
+          d.clear();
+          d["request-type"] = "SetCurrentTransition";
+          d["transition-name"] = "Fade";
+          batch["requests"].append(d);
+          d.clear();
+          d["request-type"] = "SetTransitionDuration";
+          d["duration"] = 1000;
+          batch["requests"].append(d);
+          d.clear();
+          d["request-type"] = "SetCurrentScene";
+          d["scene-name"] = i->saved_scene;
+          i->saved_scene.clear();
+          batch["requests"].append(d);
+          obsws::emit(batch);
+        }
       }
       break;
     case keyop_type::transition:
@@ -407,7 +444,9 @@ namespace obs {
           to += cycle_time;
           if (to < now)
             to = now + cycle_time;
-        }
+        } else
+          // We are likely in a middle of a cycle, redraw the inactive icon
+          button_update(button_class::ftb);
 
         if (! oreq)
           continue;
@@ -422,7 +461,7 @@ namespace obs {
         break;
       case work_request::work_type::new_session:
         get_session_data();
-        break;
+        [[ fallthrough ]];
       case work_request::work_type::buttons:
         button_update(button_class::all);
         break;
@@ -627,6 +666,7 @@ namespace obs {
             d.clear();
             d["request-type"] = "SetPreviewScene";
             d["scene-name"] = saved_preview;
+            saved_preview.clear();
             batch["requests"].append(d);
           }
           obsws::emit(batch);
@@ -704,6 +744,10 @@ namespace obs {
     d["request-type"] = "GetStudioModeStatus";
     batch["requests"].append(d);
 
+    d.clear();
+    d["request-type"] = "GetPreviewScene";
+    batch["requests"].append(d);
+
     scenes.clear();
     d.clear();
     d["request-type"] = "GetSceneList";
@@ -723,10 +767,6 @@ namespace obs {
     batch["requests"].append(d);
 
     d.clear();
-    d["request-type"] = "GetPreviewScene";
-    batch["requests"].append(d);
-
-    d.clear();
     d["request-type"] = "GetRecordingStatus";
     batch["requests"].append(d);
 
@@ -740,7 +780,11 @@ namespace obs {
 
     studio_mode = resp["results"][0]["status"] == "ok" && resp["results"][0]["studio-mode"].asBool();
 
-    auto& scenelist = resp["results"][1];
+    auto& previewscene = resp["results"][1];
+    if (previewscene.isMember("status") && previewscene["status"] == "ok")
+      current_preview = previewscene["name"].asString();
+
+    auto& scenelist = resp["results"][2];
     if (scenelist.isMember("status") && scenelist["status"] == "ok") {
       bool has_Black = false;
       current_scene = scenelist["current-scene"].asString();
@@ -767,31 +811,34 @@ namespace obs {
         d["sceneName"] = "Black";
         obsws::emit(d);
       }
+
+      d.clear();
+      d["request-type"] = "SetSceneTransitionOverride";
+      d["sceneName"] = "Black";
+      d["transitionName"] = "Fade";
+      d["transitionDuration"] = 1000;
+      obsws::emit(d);
     }
 
-    auto& transitionlist = resp["results"][2];
+    auto& transitionlist = resp["results"][3];
     if (transitionlist.isMember("status") && transitionlist["status"] == "ok")
       for (auto& t : transitionlist["transitions"])
         if (auto name = t["name"].asString(); name != "Cut")
           transitions.emplace(std::piecewise_construct, std::forward_as_tuple(name), std::forward_as_tuple(1 + transitions.size(), name));
 
-    auto& ctransition = resp["results"][3];
+    auto& ctransition = resp["results"][4];
     if (ctransition.isMember("status") && ctransition["status"] == "ok")
       current_transition = ctransition["name"].asString();
 
-    auto& dtransition = resp["results"][4];
+    auto& dtransition = resp["results"][5];
     if (dtransition.isMember("status") && dtransition["status"] == "ok")
       current_duration_ms = dtransition["transition-duration"].asUInt();
 
-    auto previewscene = resp["results"][5];
-    if (previewscene.isMember("status") && previewscene["status"] == "ok")
-      current_preview = previewscene["name"].asString();
-
-    auto recordingstatus = resp["results"][6];
+    auto& recordingstatus = resp["results"][6];
     if (recordingstatus.isMember("status") && recordingstatus["status"] == "ok")
       is_recording = recordingstatus["isRecording"].asBool() && ! recordingstatus["isRecordingPaused"].asBool();
 
-    auto streamingstatus = resp["results"][7];
+    auto& streamingstatus = resp["results"][7];
     if (streamingstatus.isMember("status") && streamingstatus["status"] == "ok") {
       is_streaming = streamingstatus["streaming"].asBool();
       is_recording = streamingstatus["recording"].asBool() && ! streamingstatus["recording-paused"].asBool();
@@ -946,7 +993,7 @@ namespace obs {
 
   scene& info::get_current_scene()
   {
-    return scenes[current_scene];
+    return scenes[(! studio_mode && ftb.active()) ? saved_scene : current_scene];
   }
 
 
@@ -1009,7 +1056,8 @@ namespace obs {
       type = work_request::work_type::streaming;
     } else if (update_type == "ScenesChanged") {
       for (auto& s : val["scenes"])
-        vs.emplace_back(s["name"].asString());
+        if (s["name"] != "Black")
+          vs.emplace_back(s["name"].asString());
       type = work_request::work_type::sceneschanged;
     } else if (update_type == "StudioModeSwitched") {
       nr = val["new-state"].asBool();
@@ -1067,9 +1115,10 @@ namespace obs {
     std::lock_guard<std::mutex> guard(worker_m);
     if (connected_)
       worker_queue.emplace(work_request::work_type::new_session);
-    else
+    else {
       connected = false;
-    worker_queue.emplace(work_request::work_type::buttons);
+      worker_queue.emplace(work_request::work_type::buttons);
+    }
     worker_cv.notify_all();
   }
 
