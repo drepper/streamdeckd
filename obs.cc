@@ -128,7 +128,6 @@ namespace obs {
       break;
     case keyop_type::ftb:
       i->ignore_next_transition_change = true;
-      std::cout << "FTB is " << (i->ftb.active() ? "" : "not") << " active\n";
       if (! i->ftb.active()) {
         i->saved_preview = i->current_preview;
         i->saved_scene = i->current_scene;
@@ -467,6 +466,9 @@ namespace obs {
         break;
       case work_request::work_type::scene:
         {
+          if (ftb.active())
+            ftb.stop();
+
           auto& old_live = get_current_scene();
           auto& old_preview = get_current_preview();
 
