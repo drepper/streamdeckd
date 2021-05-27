@@ -872,7 +872,7 @@ namespace obs {
     if (config.exists("icon2"))
       config.lookupValue("icon2", icon2name);
     else
-      icon2 = icon1;
+      icon2name = icon1name;
     if (function == "scene-live"){
       if (icon1name.empty()) {
         icon1name = "scene_live.png";

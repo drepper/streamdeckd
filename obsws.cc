@@ -72,6 +72,7 @@ namespace {
     obj.wait(old, m);
   }
 
+  template<typename T>
   void atomic_notify_all(std::atomic<T>& obj) noexcept
   {
     obj.notify_all();
@@ -268,6 +269,9 @@ namespace {
     context = std::unique_ptr<lws_context, void(*)(lws_context*)>{ lws_create_context(&info), &lws_context_destroy };
     if (context == nullptr)
       throw std::runtime_error("cannot create lws context");
+
+    // No log messages to stderr.
+    lws_set_log_level(0, nullptr);
 
     // std::cout << "created context\n";
     /* schedule the first client connection attempt to happen immediately */
