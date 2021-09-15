@@ -1,4 +1,5 @@
 VERSION = 2.5
+RELEASE = 2
 CC = gcc $(CSTD)
 CXX = g++ $(CXXSTD)
 INSTALL = install
@@ -65,7 +66,7 @@ $(SVGS:.svg=.png): %.png: %.svg
 	$(INKSCAPE) --export-type=png -o $@ $^
 
 streamdeckd.spec streamdeckd.desktop: %: %.in Makefile
-	$(SED) 's/@VERSION@/$(VERSION)/;s|@PREFIX@|$(prefix)|' $< > $@-tmp
+	$(SED) 's/@VERSION@/$(VERSION)/;s/@RELEASE@/$(RELEASE)/;s|@PREFIX@|$(prefix)|' $< > $@-tmp
 	$(MV_F) $@-tmp $@
 
 main.o: obs.hh ftlibrary.hh buttontext.hh resources.h

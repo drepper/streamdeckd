@@ -1,7 +1,7 @@
 Summary: StreamDeck Control Daemon
 Name: streamdeckd
 Version: @VERSION@
-Release: 1
+Release: @RELEASE@
 URL: https://github.com/drepper/streamdeckd
 Source: https://github.com/drepper/streamdeckd/archive/streamdeckd-@VERSION@.tar.xz
 License: GPLv2

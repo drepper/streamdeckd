@@ -24,7 +24,7 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="11.2"
-     inkscape:cx="0.80357143"
+     inkscape:cx="0.84821429"
      inkscape:cy="47.455357"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
@@ -64,7 +64,7 @@
      transform="translate(-82.661557,-77.394555)">
     <path
        id="rect882"
-       style="fill:#ffaaaa;stroke:#000000;stroke-width:0.189168;stroke-miterlimit:4;stroke-dasharray:none"
+       style="fill:none;stroke:#ff0000;stroke-width:0.189168;stroke-miterlimit:4;stroke-dasharray:none"
        d="m 84.547949,77.489183 4.27925,0.0132 c 0.840898,0.0026 1.809145,1.015325 1.809709,1.860902 l 0.0013,1.994825 2.171788,-1.562039 v 3.96875 l -2.171788,-1.761165 4.36e-4,0.83353 c 3.75e-4,0.715265 -0.527771,2.238567 -1.199559,2.231901 l -5.498407,-0.05455 c -0.671788,-0.0067 -1.158018,-0.720476 -1.161909,-1.435731 l -0.0226,-4.154504 c -0.0056,-1.035681 0.848533,-1.938021 1.791754,-1.935111 z"
        sodipodi:nodetypes="sssccccsssssss" />
     <text
@@ -76,6 +76,6 @@
        transform="matrix(0.81,0,0,0.81,17.403014,16.398852)"><tspan
          x="85.975639"
          y="92.370346"
-         id="tspan1311">V</tspan></text>
+         id="tspan74">V</tspan></text>
   </g>
 </svg>
