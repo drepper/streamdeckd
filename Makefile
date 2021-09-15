@@ -1,4 +1,4 @@
-VERSION = 2.4
+VERSION = 2.5
 CC = gcc $(CSTD)
 CXX = g++ $(CXXSTD)
 INSTALL = install
@@ -41,7 +41,7 @@ SVGS = brightness+.svg brightness-.svg color+.svg color-.svg ftb.svg obs.svg \
        transition.svg transition_off.svg scene_live_unused.svg scene_preview_unused.svg \
        right-arrow.svg left-arrow.svg source.svg source_off.svg source_unused.svg \
        ftb-0.svg ftb-12.svg ftb-25.svg ftb-37.svg ftb-50.svg ftb-62.svg ftb-75.svg ftb-87.svg ftb-100.svg \
-       transition_unused.svg
+       transition_unused.svg virtualcam.svg virtualcam_off.svg
 PNGS = $(SVGS:.svg=.png) bulb_on.png bulb_off.png bluejeans.png blank.png
 
 

@@ -38,6 +38,7 @@ namespace obs {
     source,
     record,
     stream,
+    virtualcam,
   };
 
 
@@ -162,6 +163,7 @@ namespace obs {
         delete_scene,
         recording,
         streaming,
+        virtualcam,
         sceneschanged,
         studiomode,
         sourcename,
@@ -198,7 +200,7 @@ namespace obs {
     void callback(const Json::Value& val);
     void connection_update(bool connected_);
 
-    bool prohibit_sleep() const { return is_recording || is_streaming; }
+    bool prohibit_sleep() const { return is_recording || is_streaming || provide_virtualcam; }
 
     enum struct button_class : unsigned {
       none = 0u,
@@ -236,6 +238,7 @@ namespace obs {
     bool studio_mode = false;
     bool is_recording = false;
     bool is_streaming = false;
+    bool provide_virtualcam = false;
 
     bool ignore_next_transition_change = false;
 

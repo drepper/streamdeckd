@@ -61,6 +61,8 @@ namespace obs {
         icon = i->is_recording ? icon1 : icon2;
       else if (keyop == keyop_type::stream)
         icon = i->is_streaming ? icon1 : icon2;
+      else if (keyop == keyop_type::virtualcam)
+        icon = i->provide_virtualcam ? icon1 : icon2;
       else if (keyop == keyop_type::ftb)
         icon = i->ftb.active() ? i->ftb.get() : icon1;
       else if (! i->ftb.active() && i->studio_mode)
@@ -190,6 +192,10 @@ namespace obs {
       break;
     case keyop_type::stream:
       d["request-type"] = "StartStopStreaming";
+      obsws::emit(d);
+      break;
+    case keyop_type::virtualcam:
+      d["request-type"] = "StartStopVirtualCam";
       obsws::emit(d);
       break;
     case keyop_type::source:
@@ -596,6 +602,10 @@ namespace obs {
         is_streaming = req.nr != 0;
         button_update(button_class::record);
         break;
+      case work_request::work_type::virtualcam:
+        provide_virtualcam = req.nr != 0;
+        button_update(button_class::record);
+        break;
       case work_request::work_type::sceneschanged:
         scenes.clear();
         for (auto& s : req.names)
@@ -769,10 +779,6 @@ namespace obs {
     batch["requests"].append(d);
 
     d.clear();
-    d["request-type"] = "GetRecordingStatus";
-    batch["requests"].append(d);
-
-    d.clear();
     d["request-type"] = "GetStreamingStatus";
     batch["requests"].append(d);
 
@@ -836,14 +842,11 @@ namespace obs {
     if (dtransition.isMember("status") && dtransition["status"] == "ok")
       current_duration_ms = dtransition["transition-duration"].asUInt();
 
-    auto& recordingstatus = resp["results"][6];
-    if (recordingstatus.isMember("status") && recordingstatus["status"] == "ok")
-      is_recording = recordingstatus["isRecording"].asBool() && ! recordingstatus["isRecordingPaused"].asBool();
-
-    auto& streamingstatus = resp["results"][7];
+    auto& streamingstatus = resp["results"][6];
     if (streamingstatus.isMember("status") && streamingstatus["status"] == "ok") {
       is_streaming = streamingstatus["streaming"].asBool();
       is_recording = streamingstatus["recording"].asBool() && ! streamingstatus["recording-paused"].asBool();
+      provide_virtualcam = streamingstatus["virtualcam"].asBool();
     }
 
     connected = true;
@@ -987,6 +990,18 @@ namespace obs {
       else
         icon2 = register_image(find_image(icon2name));
       return &record_buttons.emplace_back(0, setkey_image, setkey_handle, this, page, row, column, icon1, icon2, keyop_type::stream);
+    } else if (function == "toggle-virtual-cam") {
+      if (icon1name.empty()) {
+        icon1name = "virtualcam.png";
+        if (icon2name.empty())
+          icon2name = "virtualcam_off.png";
+      }
+      icon1 = register_image(find_image(icon1name));
+      if (icon1name == icon2name)
+        icon2 = icon1;
+      else
+        icon2 = register_image(find_image(icon2name));
+      return &record_buttons.emplace_back(0, setkey_image, setkey_handle, this, page, row, column, icon1, icon2, keyop_type::virtualcam);
     }
 
     return nullptr;
@@ -1056,6 +1071,9 @@ namespace obs {
     } else if (update_type == "StreamStarted" || update_type == "StreamStopped") {
       nr = update_type == "StreamStarted";
       type = work_request::work_type::streaming;
+    } else if (update_type == "VirtualCamStarted" || update_type == "VirtualCamStopped") {
+      nr = update_type == "VirtualCamStarted";
+      type = work_request::work_type::virtualcam;
     } else if (update_type == "ScenesChanged") {
       for (auto& s : val["scenes"])
         if (s["name"] != "Black")
