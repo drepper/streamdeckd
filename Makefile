@@ -20,7 +20,7 @@ LDFLAGS = $(LDFLAGS-$@)
 
 DEFINES = $(DEFINES-$@)
 INCLUDES = $(shell $(PKG_CONFIG) --cflags $(DEPPKGS))
-OPTS = -O0
+OPTS = -Og
 DEBUG = -g3
 WARN = -Wall
 
