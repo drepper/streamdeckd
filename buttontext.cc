@@ -108,7 +108,7 @@ std::pair<bool,double> render_to_image::check_size()
 
 bool render_to_image::goodenough(unsigned w, unsigned h) const
 {
-  return (w <= targetwidth && w >= unsigned(0.99 * targetwidth)) || (h <= targetheight && h >= unsigned(0.99 * targetheight));
+  return w <= targetwidth && h <= targetheight && (w >= unsigned(0.99 * targetwidth) || h >= unsigned(0.99 * targetheight));
 }
 
 

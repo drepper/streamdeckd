@@ -52,13 +52,15 @@ mkdir -p ${RPM_BUILD_ROOT}%{_prefix}
 %{_datadir}/icons/hicolor/scalable/apps/streamdeckd.svg
 
 %changelog
+* Mon Dec 13 2021 Ulrich Drepper <drepper@gmail.com> 2.6-1
+- Fix test whether text fits in button
 * Thu May 27 2021 Ulrich Drepper <drepper@gmail.com> 2.4-1
 - Fix compilation with recent libstdc++
 - disable logging of libwebsockets
 - fix handling of missing icon2 in config file
 * Sat Feb 27 2021 Ulrich Drepper <drepper@gmail.com> 2.3-1
 - Implement FTB
-* Mon Feb 23 2021 Ulrich Drepper <drepper@gmail.com> 2.2-1
+* Tue Feb 23 2021 Ulrich Drepper <drepper@gmail.com> 2.2-1
 - cache icons when possible, enabled by the new streamdeckpp
 * Thu Feb 18 2021 Ulrich Drepper <drepper@gmail.com> 2.1-1
 - Handle disabled studio mode

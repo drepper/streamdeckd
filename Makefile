@@ -1,5 +1,5 @@
-VERSION = 2.5
-RELEASE = 2
+VERSION = 2.6
+RELEASE = 1
 CC = gcc $(CSTD)
 CXX = g++ $(CXXSTD)
 INSTALL = install
