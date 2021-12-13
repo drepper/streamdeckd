@@ -87,7 +87,7 @@ namespace obs {
     using base_type = button;
 
     auto_button(unsigned nr_, set_key_image_cb setkey_image_, set_key_handle_cb setkey_handle_, info* i_, unsigned page_, unsigned row_, unsigned column_, Magick::Image&& icon1_, keyop_type keyop_, ftlibrary& ftobj, const std::string& font_, const std::string& color_, std::pair<double,double>&& center_, unsigned& duration_ms_)
-    : base_type(nr_, setkey_image_, setkey_handle_, i_, page_, row_, column_, -1, -1, keyop_), background(std::move(icon1_)), fontobj(ftobj, std::move(font_)), duration_ms(duration_ms_), color(color_), center(std::move(center_))
+    : base_type(nr_, setkey_image_, setkey_handle_, i_, page_, row_, column_, -1, -1, keyop_), background(std::move(icon1_)), fontobj(ftobj, font_), duration_ms(duration_ms_), color(color_), center(std::move(center_))
     {
     }
 
@@ -105,7 +105,7 @@ namespace obs {
     using base_type = button;
 
     scene_button(unsigned nr_, set_key_image_cb setkey_image_, set_key_handle_cb setkey_handle_, info* i_, unsigned page_, unsigned row_, unsigned column_, Magick::Image&& icon1_, Magick::Image&& icon2_, keyop_type keyop_, ftlibrary& ftobj, const std::string& font_)
-    : base_type(nr_, setkey_image_, setkey_handle_, i_, page_, row_, column_, -1, -1, keyop_), background(std::move(icon1_)), background_off(std::move(icon2_)), fontobj(ftobj, std::move(font_))
+    : base_type(nr_, setkey_image_, setkey_handle_, i_, page_, row_, column_, -1, -1, keyop_), background(std::move(icon1_)), background_off(std::move(icon2_)), fontobj(ftobj, font_)
     {
     }
 
