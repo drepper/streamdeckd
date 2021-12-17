@@ -167,7 +167,7 @@ Magick::Image font_render<T>::draw2(const Strings& wbuf, Args... args)
   auto [fontsize, dpi] = renderer.first_font_size();
   while (true) {
     call_render(fontsize, dpi, wbuf);
-    
+
     auto [finished, new_fontsize] = renderer.check_size();
     if (finished) {
       if (fontsize != new_fontsize)

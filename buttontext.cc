@@ -54,7 +54,7 @@ void render_to_image::compute_dimensions()
   for (auto& line : lines) {
     auto& slices = line.slices;
     widths.emplace_back(slices.back().x + slices.back().width - slices.front().x);
-    heights.emplace_back(line.ymax - line.ymin);
+    heights.emplace_back(line.ymax - line.ymin + 1);
   }
   assert(widths.size() == heights.size());
 
@@ -122,7 +122,7 @@ Magick::Image render_to_image::finish(Magick::Color foreground, double posx, dou
   auto imheight = image.rows();
   auto* mem = view.get(0, 0, imwidth, imheight);
 
-  int offy = std::max(0, int(imheight * posy - totalheight / 2));
+  int offy = std::max(0, int((imheight - totalheight) * posy));
 
   for (auto& line : lines) {
     auto& slices = line.slices;
@@ -130,9 +130,9 @@ Magick::Image render_to_image::finish(Magick::Color foreground, double posx, dou
     auto& ymax = line.ymax;
 
     unsigned width = slices.back().x + slices.back().width - slices.front().x;
-    unsigned height = ymax - ymin;
+    unsigned height = ymax - ymin + 1;
 
-    int offx = std::max(0, int(imwidth * posx - width / 2));
+    int offx = std::max(0, int((imwidth - width) * posx));
 
     auto s0x = slices.front().x;
     for (const auto& s : slices) {

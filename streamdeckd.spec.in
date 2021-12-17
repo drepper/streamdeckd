@@ -52,6 +52,8 @@ mkdir -p ${RPM_BUILD_ROOT}%{_prefix}
 %{_datadir}/icons/hicolor/scalable/apps/streamdeckd.svg
 
 %changelog
+* Fri Dec 17 2021 Ulrich Drepper <drepper@gmail.com> 2.7-1
+- Fix computation of text position
 * Mon Dec 13 2021 Ulrich Drepper <drepper@gmail.com> 2.6-1
 - Fix test whether text fits in button
 * Thu May 27 2021 Ulrich Drepper <drepper@gmail.com> 2.4-1
