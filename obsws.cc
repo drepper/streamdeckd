@@ -258,7 +258,9 @@ namespace {
     // std::cout << "client::client\n";
     lws_context_creation_info info;
     memset(&info, '\0', sizeof info);
-    info.options = ssl_connection ? LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT : 0;
+    info.options = LWS_SERVER_OPTION_LIBUV;
+    if (ssl_connection)
+      info.options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
     info.port = CONTEXT_PORT_NO_LISTEN; /* we do not run any server */
     info.protocols = protocols;
     info.fd_limit_per_thread = 1 + 1 + 1;

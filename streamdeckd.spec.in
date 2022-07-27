@@ -25,7 +25,7 @@ BuildRequires: libX11-devel
 BuildRequires: libXext-devel
 BuildRequires: libXScrnSaver-devel
 BuildRequires: libXi-devel
-BuildRequires: gcc-c++ >= 10.1
+BuildRequires: gcc-c++ >= 11.1
 
 %description
 
@@ -52,6 +52,10 @@ mkdir -p ${RPM_BUILD_ROOT}%{_prefix}
 %{_datadir}/icons/hicolor/scalable/apps/streamdeckd.svg
 
 %changelog
+* Wed Jul 27 2022 Ulrich Drepper <drepper@gmail.com> 3.0-1
+- Add dimming support that works with Wayland
+- Avoid obsolete OpenSSL interfaces
+- specify event interface for libwebsockets
 * Fri Dec 17 2021 Ulrich Drepper <drepper@gmail.com> 2.7-1
 - Fix computation of text position
 * Mon Dec 13 2021 Ulrich Drepper <drepper@gmail.com> 2.6-1

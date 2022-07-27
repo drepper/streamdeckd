@@ -1,4 +1,4 @@
-VERSION = 2.7
+VERSION = 3.0
 RELEASE = 1
 CC = gcc $(CSTD)
 CXX = g++ $(CXXSTD)
@@ -13,7 +13,7 @@ PKG_CONFIG = pkg-config
 INKSCAPE = inkscape
 
 CSTD = -std=gnu17
-CXXSTD = -std=gnu++20
+CXXSTD = -std=gnu++2b
 CFLAGS = $(OPTS) $(DEBUG) $(CFLAGS-$@) $(WARN)
 CXXFLAGS = $(OPTS) $(DEBUG) $(CXXFLAGS-$@) $(WARN)
 CPPFLAGS = $(INCLUDES) $(DEFINES)

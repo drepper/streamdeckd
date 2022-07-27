@@ -1,6 +1,7 @@
 #include <cerrno>
 #include <cstdlib>
 #include <filesystem>
+#include <regex>
 
 #include <error.h>
 #include <pwd.h>
@@ -310,8 +311,8 @@ namespace {
     idle idle_state = idle::running;
     void idle_dim(idle i);
     unsigned brightness;
-    unsigned idle_temp_time = 0;
-    unsigned idle_full_time = 0;
+    std::chrono::seconds idle_temp_time = std::chrono::seconds{0};
+    std::chrono::seconds idle_full_time = std::chrono::seconds{0};
     unsigned brightness_idle;
     std::thread idle_thread;
 
@@ -367,20 +368,23 @@ namespace {
 
     if (config.exists("idle"))
       if (auto& idle = config.lookup("idle"); idle.isGroup()) {
-        if (! idle.lookupValue("away", idle_temp_time))
-          idle_temp_time = 0;
+        unsigned val;
+        if (! idle.lookupValue("away", val))
+          idle_temp_time = std::chrono::seconds{0};
         else
-          idle_temp_time *= 1000;
-        if (! idle.lookupValue("off", idle_full_time))
-          idle_full_time = 0;
+          idle_temp_time = std::chrono::seconds{val};
+        if (! idle.lookupValue("off", val))
+          // The user never wants to totally turn off the display.
+          idle_full_time = std::chrono::seconds{100000};
         else
-          idle_full_time *= 1000;
+          idle_full_time = std::chrono::seconds{val};
 
-        if (idle_temp_time != 0 || idle_full_time != 0) {
+        if (idle_temp_time != std::chrono::seconds{0} || idle_full_time != std::chrono::seconds{0}) {
           if (! idle.lookupValue("brightness", brightness_idle))
-            idle_temp_time = 0;
+            idle_temp_time = std::chrono::seconds{0};
 
-          idle_thread = std::thread([this]{ handle_idle(); });
+          if (idle_temp_time != std::chrono::seconds{0} || idle_full_time != std::chrono::seconds{0})
+            idle_thread = std::thread([this]{ handle_idle(); });
         }
       }
 
@@ -533,7 +537,27 @@ namespace {
 
   namespace {
 
-    auto get_idle(Display* dpy, XScreenSaverInfo* ssi, int vendrel)
+    guint64 get_idle_time_dbus(Glib::RefPtr<Gio::DBus::Proxy>& proxy)
+    {
+
+      auto ret = proxy->call_sync("GetIdletime");
+      if (! ret) [[ unlikely ]]
+        return 0;
+
+      auto t = ret.get_type_string();
+      guint64 user_idle_time;
+      if (t == "(t)")
+        user_idle_time = ret.cast_dynamic<Glib::Variant<std::tuple<guint64>>>(ret).get_child<guint64>(0);
+      else if (t == "t")
+        user_idle_time = ret.cast_dynamic<Glib::Variant<guint64>>(ret).get();
+      else
+        user_idle_time = 0;
+
+      return user_idle_time;
+    }
+
+
+    guint64 get_idle_time_x11(Display* dpy, XScreenSaverInfo* ssi, int vendrel)
     {
       if (! XScreenSaverQueryInfo(dpy, DefaultRootWindow(dpy), ssi))
         return 0ul;
@@ -578,84 +602,180 @@ namespace {
   } // anonymous namespace
 
 
-  // The logic of this code is partly from:
-  // https://github.com/g0hl1n/xprintidle/blob/master/xprintidle.c
   void deck_config::handle_idle()
   {
-    Display* dpy = XOpenDisplay(nullptr);
-    if (dpy == nullptr)
-      return;
+    // Prefer to use dbus which also works with Wayland.
+    bool use_dbus = false;
+    auto proxy = Gio::DBus::Proxy::create_for_bus_sync(Gio::DBus::BUS_TYPE_SESSION, "org.gnome.Mutter.IdleMonitor",
+                                                       "/org/gnome/Mutter/IdleMonitor/Core", "org.gnome.Mutter.IdleMonitor");
+    try {
+      (void) get_idle_time_dbus(proxy);
+      use_dbus = true;
+    } catch (Glib::Error&) {
+      use_dbus = false;
+    }
 
-    int event_basep, error_basep;
-    if (! XScreenSaverQueryExtension(dpy, &event_basep, &error_basep))
-      return;
+    Display* dpy = nullptr;
+    XScreenSaverInfo* ssi = nullptr;
+    int vendrel = -1;
+    if (! use_dbus) {
+      // Use X11 extensions.  The logic of the non-Wayland/non-DBus code is partially from:
+      // https://github.com/g0hl1n/xprintidle/blob/master/xprintidle.c
+      dpy = ::XOpenDisplay(nullptr);
+      if (dpy == nullptr)
+        return;
 
-    XScreenSaverInfo* ssi = XScreenSaverAllocInfo();
-    if (ssi == nullptr)
-      return;
-
-    auto dim_time = idle_temp_time == 0 ? idle_full_time : idle_temp_time;
-    auto vendrel = VendorRelease(dpy);
-    while (true) {
-      if (! XScreenSaverQueryInfo(dpy, DefaultRootWindow(dpy), ssi)) {
-        std::cout << "failed to get screen saver info\n";
+      int event_base;
+      int error_base;
+      if (! ::XScreenSaverQueryExtension(dpy, &event_base, &error_base)) {
+        ::XCloseDisplay(dpy);
         return;
       }
 
-      auto idle = get_idle(dpy, ssi, vendrel);
-      if (prohibit_sleep() || idle < dim_time) {
-        sleep(std::max(10ul, (dim_time - idle) / 1000u));
+      ssi = ::XScreenSaverAllocInfo();
+      if (ssi == nullptr) {
+        ::XCloseDisplay(dpy);
+        return;
+      }
+
+      vendrel = VendorRelease(dpy);
+    }
+
+    std::vector<int> fds;
+    bool use_input_devices = true;
+
+    std::regex re(".*event([0-9]+).*");
+    std::array<epoll_event,10> evs;
+
+
+    // Used when /proc/bus/input/devices is not usable.
+    XIEventMask m;
+    m.deviceid = XIAllDevices;
+    m.mask_len = XIMaskLen(XI_LASTEVENT);
+    m.mask = static_cast<unsigned char*>(calloc(m.mask_len, sizeof(unsigned char)));
+    if (m.mask == nullptr) {
+      if (! use_dbus) {
+        ::XFree(ssi);
+        ::XCloseDisplay(dpy);
+      }
+      return;
+    }
+
+    XISetMask(m.mask, XI_ButtonPress);
+    XISetMask(m.mask, XI_ButtonRelease);
+    XISetMask(m.mask, XI_KeyPress);
+    XISetMask(m.mask, XI_KeyRelease);
+    XISetMask(m.mask, XI_Motion);
+    XISetMask(m.mask, XI_TouchBegin);
+    XISetMask(m.mask, XI_TouchUpdate);
+    XISetMask(m.mask, XI_TouchEnd);
+
+
+
+    auto dim_time = idle_temp_time == std::chrono::seconds{0} ? idle_full_time : idle_temp_time;
+
+    auto now = std::chrono::system_clock::now();
+    auto timeout_time = now + dim_time;
+    auto to_sleep = timeout_time - now;
+    while (true) {
+      std::this_thread::sleep_for(to_sleep);
+      auto idle_now = std::chrono::milliseconds(use_dbus ? get_idle_time_dbus(proxy) : get_idle_time_x11(dpy, ssi, vendrel));
+      if (idle_now < dim_time) {
+        timeout_time = now + dim_time - idle_now;
+        to_sleep = dim_time - idle_now;
         continue;
       }
 
-      // The system is idle.  Switch into event tracking mode.
-      Display* dpy2 = XOpenDisplay(nullptr);
-      if (dpy2 == nullptr)
-        return;
-      Window win = DefaultRootWindow(dpy2);
+      fds.clear();
 
-      XIEventMask m;
-      m.deviceid = XIAllDevices;
-      m.mask_len = XIMaskLen(XI_LASTEVENT);
-      m.mask = static_cast<unsigned char*>(calloc(m.mask_len, sizeof(unsigned char)));
-      if (m.mask == nullptr)
-        error(EXIT_FAILURE, errno, "failed to allocate event mask");
+      int efd = ::epoll_create1(EPOLL_CLOEXEC);
+      if (efd == -1) [[ unlikely ]]
+        break;
+      epoll_event ev;
+      ev.events = EPOLLIN;
 
-      XISetMask(m.mask, XI_ButtonPress);
-      XISetMask(m.mask, XI_ButtonRelease);
-      XISetMask(m.mask, XI_KeyPress);
-      XISetMask(m.mask, XI_KeyRelease);
-      XISetMask(m.mask, XI_Motion);
-      XISetMask(m.mask, XI_TouchBegin);
-      XISetMask(m.mask, XI_TouchUpdate);
-      XISetMask(m.mask, XI_TouchEnd);
+      if (use_input_devices) {
+        std::ifstream ifs("/proc/bus/input/devices");
+        if (! ifs.is_open()) [[ unlikely ]]
+          use_input_devices = false;
+        else {
+          std::smatch match;
+          for (std::string line; std::getline(ifs, line); )
+            if (line.starts_with("H: Handlers=") && (line.contains("kbd") || line.contains("mouse"))) {
+              if (std::regex_match(line, match, re) && match.size() == 2) {
+                auto devname = "/dev/input/event"s + match[1].str();
+                if (int fd = ::open(devname.c_str(), O_RDONLY | O_CLOEXEC | O_NOCTTY); fd >= 0) [[ likely ]] {
+                  ev.data.fd = fd;
+                  if (::epoll_ctl(efd, EPOLL_CTL_ADD, fd, &ev) != -1) [[ likely ]]
+                    fds.push_back(fd);
+                  else
+                    ::close(fd);
+                }
+              }
+            }
 
-      XISelectEvents(dpy2, win, &m, 1);
+          if (fds.empty()) [[ unlikely ]]
+            use_input_devices = false;
+        }
+      }
 
-      free(m.mask);
+      Display* dpy2 = nullptr;
+      Window win = 0;
+      if (! use_input_devices) {
+        // The system is idle.  Switch into event tracking mode.
+        dpy2 = ::XOpenDisplay(nullptr);
+        if (dpy2 == nullptr) {
+          ::close(efd);
+          break;
+        }
+        win = DefaultRootWindow(dpy2);
 
-      XSync(dpy2, False);
+        ::XISelectEvents(dpy2, win, &m, 1);
+        ::XSync(dpy2, False);
 
-      int fd = ConnectionNumber(dpy2);
-      pollfd fds[1] { { .fd = fd, .events = POLLIN, .revents = 0 } };
+        int fd = ConnectionNumber(dpy2);
+        ev.data.fd = fd;
+        if (::epoll_ctl(efd, EPOLL_CTL_ADD, fd, &ev) == -1) [[ unlikely ]] {
+          ::close(efd);
+          break;
+        }
+      }
 
-      idle_dim(idle >= idle_full_time ? idle::full : idle::temp);
+      idle_dim(idle_now >= idle_full_time ? idle::full : idle::temp);
 
       while (true) {
-        auto n = poll(fds, 1, idle_state == idle::full ? -1 : (idle_full_time - idle_temp_time));
-        if (n != 0) {
+        int epoll_timeout = idle_now >= idle_full_time ? -1 : std::chrono::duration_cast<std::chrono::milliseconds>(idle_full_time - idle_now).count();
+        auto nfds = ::epoll_wait(efd, evs.data(), evs.size(), epoll_timeout);
+        if (nfds > 0) {
           // System event.  Resume normal operation, reset brightness.
           idle_dim(idle::running);
           break;
         }
 
-        assert(idle_state == idle::temp);
-        idle_dim(idle::full);
+        idle_now = std::chrono::milliseconds(use_dbus ? get_idle_time_dbus(proxy) : get_idle_time_x11(dpy, ssi, vendrel));
+        if (idle_now >= idle_full_time)
+          idle_dim(idle::full);
       }
 
-      XDestroyWindow(dpy2, win);
-      XCloseDisplay(dpy2);
+      if (use_input_devices) {
+        for (auto fd : fds)
+          ::close(fd);
+      } else {
+        ::XDestroyWindow(dpy2, win);
+        ::XCloseDisplay(dpy2);
+      }
+      ::close(efd);
+
+      timeout_time = std::chrono::system_clock::now() + dim_time;
+      to_sleep = dim_time;
     }
+
+    if (! use_dbus) {
+      ::XFree(ssi);
+      ::XCloseDisplay(dpy);
+    }
+
+    free(m.mask);
   }
 
 

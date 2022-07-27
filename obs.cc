@@ -724,24 +724,35 @@ namespace obs {
     if (! resp.isMember("status") || resp["status"] != "ok")
       return;
     if (resp["authRequired"].asBool()) {
+      std::unique_ptr<EVP_MD_CTX, void(*)(EVP_MD_CTX*)> ctx { EVP_MD_CTX_create(), &EVP_MD_CTX_free };
+      if (ctx == nullptr)
+        return;
+
+      if (EVP_DigestInit_ex(ctx.get(), EVP_sha256(), nullptr) != 1)
+        return;
       auto salt = resp["salt"].asCString();
-      SHA256_CTX shactx;
-      SHA256_Init(&shactx);
-      SHA256_Update(&shactx, password.c_str(), password.size());
-      SHA256_Update(&shactx, salt, strlen(salt));
-      unsigned char hashbuf[SHA256_DIGEST_LENGTH];
-      SHA256_Final(hashbuf, &shactx);
+      if (EVP_DigestUpdate(ctx.get(), password.c_str(), password.size()) != 1 ||
+          EVP_DigestUpdate(ctx.get(), salt, strlen(salt)) != 1)
+        return;
+      unsigned char hashbuf[EVP_MD_size(EVP_sha256())];
+      unsigned hashbuflen = sizeof(hashbuf);
+      if (EVP_DigestFinal_ex(ctx.get(), hashbuf, &hashbuflen) != 1)
+        return;
 
       unsigned char enchashbuf[(sizeof(hashbuf) + 2) / 3 * 4 + 1];
-      auto enclen = EVP_EncodeBlock(enchashbuf, hashbuf, SHA256_DIGEST_LENGTH);
+      auto enclen = EVP_EncodeBlock(enchashbuf, hashbuf, hashbuflen);
 
+      if (EVP_DigestInit_ex(ctx.get(), EVP_sha256(), nullptr) != 1)
+        return;
       auto challenge = resp["challenge"].asString();
-      SHA256_Init(&shactx);
-      SHA256_Update(&shactx, enchashbuf, enclen);
-      SHA256_Update(&shactx, challenge.c_str(), challenge.size());
-      SHA256_Final(hashbuf, &shactx);
+      if (EVP_DigestUpdate(ctx.get(), enchashbuf, enclen) != 1 ||
+          EVP_DigestUpdate(ctx.get(), challenge.c_str(), challenge.size()) != 1)
+        return;
+      hashbuflen = sizeof(hashbuf);
+      if (EVP_DigestFinal_ex(ctx.get(), hashbuf, &hashbuflen) != 1)
+        return;
 
-      EVP_EncodeBlock(enchashbuf, hashbuf, SHA256_DIGEST_LENGTH);
+      EVP_EncodeBlock(enchashbuf, hashbuf, hashbuflen);
 
       d.clear();
       d["request-type"] = "Authenticate";
