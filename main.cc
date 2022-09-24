@@ -514,6 +514,8 @@ namespace {
   {
     show_icons();
 
+    signal(SIGTERM, SIG_DFL);
+
     while (true) {
       auto ss = dev->read();
       if (idle_state == idle::full)
@@ -669,7 +671,6 @@ namespace {
     XISetMask(m.mask, XI_TouchBegin);
     XISetMask(m.mask, XI_TouchUpdate);
     XISetMask(m.mask, XI_TouchEnd);
-
 
 
     auto dim_time = idle_temp_time == std::chrono::seconds{0} ? idle_full_time : idle_temp_time;
