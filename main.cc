@@ -539,6 +539,22 @@ namespace {
 
   namespace {
 
+    bool is_wayland_session()
+    {
+      auto env = getenv("XDG_SESSION_TYPE");
+      if (env != nullptr) {
+        if (strcmp(env, "x11") == 0)
+          return false;
+        if (strcmp(env, "wayland") == 0)
+          return true;
+      }
+      env = getenv("WAYLAND_DISPLAY");
+      if (env != nullptr && strncmp(env, "wayland-", 8) == 0)
+        return true;
+      // XYZ use something else?
+      return false;
+    }
+
     guint64 get_idle_time_dbus(Glib::RefPtr<Gio::DBus::Proxy>& proxy)
     {
 
@@ -607,14 +623,18 @@ namespace {
   void deck_config::handle_idle()
   {
     // Prefer to use dbus which also works with Wayland.
-    bool use_dbus = false;
-    auto proxy = Gio::DBus::Proxy::create_for_bus_sync(Gio::DBus::BUS_TYPE_SESSION, "org.gnome.Mutter.IdleMonitor",
-                                                       "/org/gnome/Mutter/IdleMonitor/Core", "org.gnome.Mutter.IdleMonitor");
-    try {
-      (void) get_idle_time_dbus(proxy);
-      use_dbus = true;
-    } catch (Glib::Error&) {
-      use_dbus = false;
+    bool use_dbus = is_wayland_session();
+    Glib::RefPtr<Gio::DBus::Proxy> proxy;
+
+    if (use_dbus) {
+      proxy = Gio::DBus::Proxy::create_for_bus_sync(Gio::DBus::BUS_TYPE_SESSION, "org.gnome.Mutter.IdleMonitor",
+                                                    "/org/gnome/Mutter/IdleMonitor/Core", "org.gnome.Mutter.IdleMonitor");
+      try {
+        (void) get_idle_time_dbus(proxy);
+        use_dbus = true;
+      } catch (Glib::Error&) {
+        use_dbus = false;
+      }
     }
 
     Display* dpy = nullptr;
@@ -644,7 +664,7 @@ namespace {
     }
 
     std::vector<int> fds;
-    bool use_input_devices = true;
+    bool use_input_devices = use_dbus;
 
     std::regex re(".*event([0-9]+).*");
     std::array<epoll_event,10> evs;
