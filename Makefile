@@ -7,7 +7,6 @@ LN_FS = ln -fs
 SED = sed
 TAR = tar
 MV_F = mv -f
-RM_F = rm -f
 RPMBUILD = rpmbuild
 PKG_CONFIG = pkg-config
 INKSCAPE = inkscape
@@ -30,7 +29,7 @@ LIBS = $(shell $(PKG_CONFIG) --libs $(DEPPKGS)) -lcpprest -lxdo -lpthread
 prefix = /usr
 bindir = $(prefix)/bin
 
-IFACEPKGS = 
+IFACEPKGS =
 DEPPKGS = freetype2 fontconfig Magick++ libutf8proc libconfig++ keylightpp streamdeckpp libcrypto jsoncpp uuid libwebsockets giomm-2.4 xscrnsaver xi xext x11
 ALLPKGS = $(IFACEPKGS) $(DEPPKGS)
 
@@ -85,7 +84,7 @@ install: streamdeckd streamdeckd.desktop
 dist: streamdeckd.spec streamdeckd.desktop $(PNGS)
 	$(LN_FS) . streamdeckd-$(VERSION)
 	$(TAR) achf streamdeckd-$(VERSION).tar.xz streamdeckd-$(VERSION)/{Makefile,main.cc,obs.cc,obs.hh,obsws.cc,obsws.hh,ftlibrary.cc,ftlibrary.hh,buttontext.cc,buttontext.hh,README.md,streamdeckd.spec,streamdeckd.spec.in,streamdeckd.desktop.in,*.svg,*.png}
-	$(RM_F) streamdeckd-$(VERSION)
+	$(RM) streamdeckd-$(VERSION)
 
 srpm: dist
 	$(RPMBUILD) -ts streamdeckd-$(VERSION).tar.xz
@@ -93,7 +92,7 @@ rpm: dist
 	$(RPMBUILD) -tb streamdeckd-$(VERSION).tar.xz
 
 clean:
-	$(RM_F) streamdeckd $(OBJS) streamdeckd.spec streamdeckd.desktop resources.{xml,c,h}
+	$(RM) streamdeckd $(OBJS) streamdeckd.spec streamdeckd.desktop resources.{xml,c,h}
 
 .PHONY: all install pngs dist srpm rpm clean
 .ONESHELL:
