@@ -125,6 +125,16 @@ resources, then the `Pictures` subdirectory in the user's home directory,
 and finally in the `/usr/share/pixmaps` directory.
 
 
+Permissions
+-----------
+
+When the Wayland environment is used it is necessary for the process
+to access the event devices `/dev/input/eventXX` where `XX` is the number
+of the keyboard and mouse events.  On Fedora systems these devices are
+not globally writable.  A usable solution is to make the user member of the
+`input` group.
+
+
 OBS Control
 -----------
 

@@ -52,7 +52,9 @@ mkdir -p ${RPM_BUILD_ROOT}%{_prefix}
 %{_datadir}/icons/hicolor/scalable/apps/streamdeckd.svg
 
 %changelog
-* mon Oct 3 2022 Ulrich Drepper <drepper@gmail.com> 3.2-1
+* Wed Oct 19 2022 Ulrich Drepper <drepper@gmail.com> 3.3-1
+- Emit error messages if input devices cannot be opened
+* Mon Oct 3 2022 Ulrich Drepper <drepper@gmail.com> 3.2-1
 - Fix input detection for X11 sessions
 * Sat Sep 24 2022 Ulrich Drepper <drepper@gmail.com> 3.1-1
 - work around libuv blocking/ignoring SIGTERM

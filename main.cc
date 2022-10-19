@@ -631,7 +631,6 @@ namespace {
                                                     "/org/gnome/Mutter/IdleMonitor/Core", "org.gnome.Mutter.IdleMonitor");
       try {
         (void) get_idle_time_dbus(proxy);
-        use_dbus = true;
       } catch (Glib::Error&) {
         use_dbus = false;
       }
@@ -695,6 +694,7 @@ namespace {
 
     auto dim_time = idle_temp_time == std::chrono::seconds{0} ? idle_full_time : idle_temp_time;
 
+    bool first_sleep = true;
     auto now = std::chrono::system_clock::now();
     auto timeout_time = now + dim_time;
     auto to_sleep = timeout_time - now;
@@ -702,7 +702,6 @@ namespace {
       std::this_thread::sleep_for(to_sleep);
       auto idle_now = std::chrono::milliseconds(use_dbus ? get_idle_time_dbus(proxy) : get_idle_time_x11(dpy, ssi, vendrel));
       if (idle_now < dim_time) {
-        timeout_time = now + dim_time - idle_now;
         to_sleep = dim_time - idle_now;
         continue;
       }
@@ -731,13 +730,16 @@ namespace {
                     fds.push_back(fd);
                   else
                     ::close(fd);
-                }
+                } else if (first_sleep && errno == EACCES)
+                  std::cerr << "insufficient permissions to open " << devname << std::endl;
               }
             }
 
           if (fds.empty()) [[ unlikely ]]
             use_input_devices = false;
         }
+
+        first_sleep = false;
       }
 
       Display* dpy2 = nullptr;
@@ -787,7 +789,6 @@ namespace {
       }
       ::close(efd);
 
-      timeout_time = std::chrono::system_clock::now() + dim_time;
       to_sleep = dim_time;
     }
 
