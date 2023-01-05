@@ -118,6 +118,11 @@ namespace {
   };
 
 
+  struct lws_context_deleter {
+    void operator()(lws_context* p) { lws_context_destroy(p); }
+  };
+
+
   struct client {
     client(obsws::event_cb_type event_cb_, obsws::update_cb_type update_cb_, const char* server_, unsigned port_, const char* log, int ssl_connection_, const char* ssl_ca_path, const uint32_t* backoff_ms, uint16_t nbackoff_ms, uint16_t secs_since_valid_ping, uint16_t secs_since_valid_hangup, uint8_t jitter_percent);
     ~client() { status = ws_status::terminated; atomic_notify_all(status); thread.join(); }
@@ -181,13 +186,13 @@ namespace {
       if (log_transmits)
         std::cout << "transmitted " << din << std::endl;
 
-      if constexpr (emit) 
+      if constexpr (emit)
         return true;
       else {
         req.l.wait();
         Json::Value res = std::move(req.result);
         outstanding.remove_if([uuid_str](auto& e) { return e.d["message-id"].asString() == uuid_str; });
-        return res;    
+        return res;
       }
     }
 
@@ -200,7 +205,7 @@ namespace {
       { nullptr, nullptr, 0, 0}
     };
 
-    std::unique_ptr<lws_context, void(*)(lws_context*)> context{ nullptr, nullptr };
+    std::unique_ptr<lws_context, lws_context_deleter> context;
     lws_retry_bo_t retry;
     const char* remote_protocol;
     const int ssl_connection;
@@ -268,7 +273,7 @@ namespace {
     info.uid = -1;
     info.client_ssl_ca_filepath = ssl_ca_path;
 
-    context = std::unique_ptr<lws_context, void(*)(lws_context*)>{ lws_create_context(&info), &lws_context_destroy };
+    context = std::unique_ptr<lws_context, lws_context_deleter>{ lws_create_context(&info) };
     if (context == nullptr)
       throw std::runtime_error("cannot create lws context");
 
