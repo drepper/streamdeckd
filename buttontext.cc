@@ -1,5 +1,6 @@
 #include <cassert>
 #include <numeric>
+#include <stdexcept>
 
 #include "buttontext.hh"
 
@@ -224,8 +225,11 @@ Magick::Image render_to_image::finish(Magick::Color foreground, double posx, dou
     offy += height + linesep;
   }
 
-  // view.sync();
+#if MagickLibVersion >= 0x700
   image.syncPixels();
+#else
+  view.sync();
+#endif
 
   return image;
 }

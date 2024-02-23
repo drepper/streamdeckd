@@ -1,6 +1,9 @@
 #ifndef _BUTTONTEXT_HH
 #define _BUTTONTEXT_HH 1
 
+#include <algorithm>
+#include <cstdint>
+#include <limits>
 #include <tuple>
 #include <vector>
 
@@ -11,7 +14,7 @@
 
 struct render_to_image {
   render_to_image(const Magick::Color& background_, unsigned targetwidth_, unsigned targetheight_)
-  : background(Magick::Geometry(targetwidth_, targetheight_), background_), targetwidth(targetwidth_ ?: UINT_MAX), targetheight(targetheight_ ?: UINT_MAX)
+  : background(Magick::Geometry(targetwidth_, targetheight_), background_), targetwidth(targetwidth_ ?: std::numeric_limits<unsigned>::max()), targetheight(targetheight_ ?: std::numeric_limits<unsigned>::max())
   {
   }
 
@@ -58,8 +61,8 @@ private:
   };
   struct line_type {
     std::vector<slice> slices;
-    int ymin = INT_MAX;
-    int ymax = INT_MIN;
+    int ymin = std::numeric_limits<int>::max();
+    int ymax = std::numeric_limits<int>::min();
   };
   std::vector<line_type> lines;
   static constexpr double frac_linesep = 0.15;
