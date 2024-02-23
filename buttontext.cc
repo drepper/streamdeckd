@@ -117,10 +117,25 @@ Magick::Image render_to_image::finish(Magick::Color foreground, double posx, dou
   Magick::Image image(background);
   image.modifyImage();
 
-  Magick::Pixels view(image);
+#if MagickLibVersion >= 0x700
+  assert(image.alpha());
+  assert(image.channels() == 4);
+#endif
+
   auto imwidth = image.columns();
   auto imheight = image.rows();
+#if MagickLibVersion >= 0x700
+  auto mem = image.getPixels(0, 0, imwidth, imheight);
+  auto foreground_red = foreground.quantumRed();
+  auto foreground_green = foreground.quantumGreen();
+  auto foreground_blue = foreground.quantumBlue();
+#else
+  Magick::Pixels view(image);
   auto* mem = view.get(0, 0, imwidth, imheight);
+  auto foregroud_red = foreground.redQuantum();
+  auto foregroud_green = foreground.greenQuantum();
+  auto foregroud_blue = foreground.blueQuantum();
+#endif
 
   int offy = std::max(0, int((imheight - totalheight) * posy));
 
@@ -150,10 +165,23 @@ Magick::Image render_to_image::finish(Magick::Color foreground, double posx, dou
           if (memx >= imwidth)
             continue;
 
-          auto memoffset = memy * imwidth + memx;
 
           auto foreground_alpha = QuantumRange * ~s.bitmap[offset] / 255;
-          if (mem[memoffset].opacity != QuantumRange && foreground_alpha != QuantumRange) {
+
+#if MagickLibVersion >= 0x700
+          auto memoffset = (memy * imwidth + memx) * 4;
+          Quantum red = mem[memoffset];
+          Quantum green = mem[memoffset + 1];
+          Quantum blue = mem[memoffset + 2];
+          Quantum opacity = mem[memoffset + 3];
+#else
+          auto memoffset = memy * imwidth + memx;
+          Quantum red = mem[memoffset].red;
+          Quantum green = mem[memoffset].green;
+          Quantum blue = mem[memoffset].blue;
+          Quantum opacity = mem[memoffset].opacity;
+#endif
+          if (opacity != QuantumRange && foreground_alpha != QuantumRange) {
             // This code is a mess.  It implements alpha-blending but with three different units
             // this gets complicated.  Opagueness in the alpha-blending formula assumes a range
             // of 0.0 (transparent) to 1.0 (completely opaque).  The ImageMagick library uses a
@@ -162,29 +190,42 @@ Magick::Image render_to_image::finish(Magick::Color foreground, double posx, dou
             // value and type on the libraries configuration.  Finally, the freetype library uses
             // an opagueness value from 0 to an upper value based on the image format.  We use
             // 256 gray levels and therefore the range is 0 to 255.
-            auto alphamem = 1.0 - mem[memoffset].opacity / double(QuantumRange);
-            mem[memoffset].opacity = foreground_alpha * mem[memoffset].opacity / double(QuantumRange);
+            auto alphamem = 1.0 - opacity / double(QuantumRange);
+            opacity = foreground_alpha * opacity / double(QuantumRange);
 
-            auto alphares = 1.0 - mem[memoffset].opacity / double(QuantumRange);
+            auto alphares = 1.0 - opacity / double(QuantumRange);
             auto alphatext = s.bitmap[offset] / 255.0;
 
-            mem[memoffset].red = 1.0 / alphares * (alphatext * foreground.redQuantum() + (1.0 - alphatext) * alphamem * mem[memoffset].red);
-            mem[memoffset].green = 1.0 / alphares * (alphatext * foreground.greenQuantum() + (1.0 - alphatext) * alphamem * mem[memoffset].green);
-            mem[memoffset].blue = 1.0 / alphares * (alphatext * foreground.blueQuantum() + (1.0 - alphatext) * alphamem * mem[memoffset].blue);
-          } else if (mem[memoffset].opacity == 0) {
-            mem[memoffset].red = foreground.redQuantum();
-            mem[memoffset].green = foreground.greenQuantum();
-            mem[memoffset].blue = foreground.blueQuantum();
-            mem[memoffset].opacity = foreground_alpha;
+            red = 1.0 / alphares * (alphatext * foreground_red + (1.0 - alphatext) * alphamem * red);
+            green = 1.0 / alphares * (alphatext * foreground_green + (1.0 - alphatext) * alphamem * green);
+            blue = 1.0 / alphares * (alphatext * foreground_blue + (1.0 - alphatext) * alphamem * blue);
+          } else if (opacity == 0) {
+            red = foreground_red;
+            green = foreground_green;
+            blue = foreground_blue;
+            opacity = foreground_alpha;
           }
+
+#if MagickLibVersion >= 0x700
+          mem[memoffset] = red;
+          mem[memoffset + 1] = green;
+          mem[memoffset + 2] = blue;
+          mem[memoffset + 3] = opacity;
+#else
+          mem[memoffset].red = red;
+          mem[memoffset].green = green;
+          mem[memoffset].blue = blue;
+          mem[memoffset].opacity = opacity;
+#endif
         }
       }
     }
 
-    offy += height + linesep;   
+    offy += height + linesep;
   }
 
-  view.sync();
+  // view.sync();
+  image.syncPixels();
 
   return image;
 }
