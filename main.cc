@@ -126,7 +126,7 @@ namespace {
     {
       nkeylights = 0;
       for (auto& d : keylights)
-        if (serial == "" || serial == d.serial)
+        if (serial.empty() || serial == d.serial)
           ++nkeylights;
 
       std::string icon1name;
@@ -147,7 +147,7 @@ namespace {
     {
       bool any = false;
       for (auto& d : keylights)
-        if (serial == "" || serial == d.serial) {
+        if (serial.empty() || serial == d.serial) {
           d.toggle();
           any = true;
         }
@@ -177,7 +177,7 @@ namespace {
 
     void call() override {
       for (auto& d : keylights)
-        if (serial == "" || serial == d.serial) {
+        if (serial.empty() || serial == d.serial) {
           if (inc < 0)
             d.color_dec(unsigned(-inc));
           else
@@ -201,7 +201,7 @@ namespace {
 
     void call() override {
       for (auto& d : keylights)
-        if (serial == "" || serial == d.serial) {
+        if (serial.empty() || serial == d.serial) {
           if (inc < 0)
             d.brightness_dec(unsigned(-inc));
           else
@@ -338,13 +338,13 @@ namespace {
 
     std::string serial;
     if (! config.lookupValue("serial", serial))
-      serial = "";
+      serial.clear();
 
     for (auto& d : ctx) {
       if (! d->connected())
         continue;
 
-      if (serial == "" || d->get_serial_number() == serial) {
+      if (serial.empty() || d->get_serial_number() == serial) {
         dev = d.get();
         d->reset();
       }
