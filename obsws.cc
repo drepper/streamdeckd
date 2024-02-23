@@ -396,14 +396,14 @@ namespace {
         lwsl_hexdump_notice(in, len);
       {
         chunks.append(static_cast<char*>(in), len);
-        
+
         Json::CharReaderBuilder builder;
         const std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
         Json::Value root;
         Json::String err;
         if (reader->parse(chunks.data(), chunks.data() + chunks.size(), &root, &err)) {
           if (root.isMember("message-id")) {
-            auto queued = std::find_if(outstanding.begin(), outstanding.end(), [s=root["message-id"].asString()](const auto& e){ return s == e.d["message-id"]; });
+            auto queued = std::find_if(outstanding.begin(), outstanding.end(), [s=root["message-id"].asString()](const auto& e){ return s == e.d["message-id"].asString(); });
             if (queued->emit)
               outstanding.erase(queued);
             else {
