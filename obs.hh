@@ -42,11 +42,18 @@ namespace obs {
   };
 
 
+  struct source {
+    std::string name;
+    bool enabled;
+  };
+
+
   struct scene {
     scene() = default;
-    scene(unsigned nr_, const std::string& name_) : nr(nr_), name(name_) { }
+    scene(unsigned nr_, const std::string& name_) : nr(nr_), name(name_), sources() { }
     unsigned nr = 0;
     std::string name;
+    std::vector<source> sources;
   };
 
 

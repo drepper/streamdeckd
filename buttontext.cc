@@ -4,6 +4,12 @@
 
 #include "buttontext.hh"
 
+
+#if MagickLibVersion < 0x700
+# error "ImageMagick version too old"
+#endif
+
+
 // XYZ Debug
 // #include <iostream>
 
@@ -118,25 +124,15 @@ Magick::Image render_to_image::finish(Magick::Color foreground, double posx, dou
   Magick::Image image(background);
   image.modifyImage();
 
-#if MagickLibVersion >= 0x700
   assert(image.alpha());
   assert(image.channels() == 4);
-#endif
 
   auto imwidth = image.columns();
   auto imheight = image.rows();
-#if MagickLibVersion >= 0x700
   auto mem = image.getPixels(0, 0, imwidth, imheight);
   auto foreground_red = foreground.quantumRed();
   auto foreground_green = foreground.quantumGreen();
   auto foreground_blue = foreground.quantumBlue();
-#else
-  Magick::Pixels view(image);
-  auto* mem = view.get(0, 0, imwidth, imheight);
-  auto foregroud_red = foreground.redQuantum();
-  auto foregroud_green = foreground.greenQuantum();
-  auto foregroud_blue = foreground.blueQuantum();
-#endif
 
   int offy = std::max(0, int((imheight - totalheight) * posy));
 
@@ -167,31 +163,22 @@ Magick::Image render_to_image::finish(Magick::Color foreground, double posx, dou
             continue;
 
 
-          auto foreground_alpha = QuantumRange * ~s.bitmap[offset] / 255;
+          auto foreground_alpha = QuantumRange * s.bitmap[offset] / 255;
 
-#if MagickLibVersion >= 0x700
           auto memoffset = (memy * imwidth + memx) * 4;
           Quantum red = mem[memoffset];
           Quantum green = mem[memoffset + 1];
           Quantum blue = mem[memoffset + 2];
           Quantum opacity = mem[memoffset + 3];
-#else
-          auto memoffset = memy * imwidth + memx;
-          Quantum red = mem[memoffset].red;
-          Quantum green = mem[memoffset].green;
-          Quantum blue = mem[memoffset].blue;
-          Quantum opacity = mem[memoffset].opacity;
-#endif
-          if (opacity != QuantumRange && foreground_alpha != QuantumRange) {
+          if (opacity != 0 && foreground_alpha != 0) {
             // This code is a mess.  It implements alpha-blending but with three different units
-            // this gets complicated.  Opagueness in the alpha-blending formula assumes a range
+            // this gets complicated.  Opaqueness in the alpha-blending formula assumes a range
             // of 0.0 (transparent) to 1.0 (completely opaque).  The ImageMagick library uses a
-            // range from QuantumRange (transparent) to 0 (completely opaque).  Note the reverse
-            // relationship of numeric value and meaning and the fact that QuantumRange depends in
-            // value and type on the libraries configuration.  Finally, the freetype library uses
-            // an opagueness value from 0 to an upper value based on the image format.  We use
-            // 256 gray levels and therefore the range is 0 to 255.
-            auto alphamem = 1.0 - opacity / double(QuantumRange);
+            // range from 0 (transparent) to QuantumRange (completely opaque).  Note that
+            // QuantumRange depends in value and type on the libraries configuration.
+            // Finally, the freetype library uses an opaqueness value from 0 to an upper value
+            // based on the image format.  We use 256 gray levels and therefore the range is 0 to 255.
+            auto alphamem = opacity / double(QuantumRange);
             opacity = foreground_alpha * opacity / double(QuantumRange);
 
             auto alphares = 1.0 - opacity / double(QuantumRange);
@@ -207,17 +194,10 @@ Magick::Image render_to_image::finish(Magick::Color foreground, double posx, dou
             opacity = foreground_alpha;
           }
 
-#if MagickLibVersion >= 0x700
           mem[memoffset] = red;
           mem[memoffset + 1] = green;
           mem[memoffset + 2] = blue;
           mem[memoffset + 3] = opacity;
-#else
-          mem[memoffset].red = red;
-          mem[memoffset].green = green;
-          mem[memoffset].blue = blue;
-          mem[memoffset].opacity = opacity;
-#endif
         }
       }
     }
@@ -225,11 +205,7 @@ Magick::Image render_to_image::finish(Magick::Color foreground, double posx, dou
     offy += height + linesep;
   }
 
-#if MagickLibVersion >= 0x700
   image.syncPixels();
-#else
-  view.sync();
-#endif
 
   return image;
 }
