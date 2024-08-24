@@ -188,10 +188,10 @@ namespace {
       r["op"] = op;
       r["d"] = std::move(d);
 
-      auto& req(send(std::move(r), emit));
-
       if (log_transmits)
-        std::cout << "transmitted " << din << std::endl;
+        std::cout << "transmitting " << r << std::endl;
+
+      auto& req(send(std::move(r), emit));
 
       if constexpr (emit)
         return true;

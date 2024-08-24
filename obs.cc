@@ -477,14 +477,14 @@ namespace obs {
           if (ftb.active())
             ftb.stop();
 
-          auto& old_live = get_current_scene();
+          auto old_nr = get_current_scene().nr;
 
           current_scene = req.names[0];
           auto& new_live = get_current_scene();
 
-          if (old_live.nr != new_live.nr)
+          if (old_nr != new_live.nr)
             for (auto& p : scene_live_buttons)
-              if (p.second.nr == old_live.nr || p.second.nr == new_live.nr)
+              if (p.second.nr == old_nr || p.second.nr == new_live.nr)
                 p.second.show_icon();
 
           if (! studio_mode) {
@@ -528,16 +528,12 @@ namespace obs {
         {
           assert(studio_mode);
 
-          auto& old_preview = get_current_preview();
+          auto old_nr = get_current_preview().nr;
 
           current_preview = req.names[0];
           auto& new_preview = get_current_preview();
 
-          if (old_preview.nr != new_preview.nr) {
-            // for (auto& p : scene_preview_buttons)
-            //   if (p.second.nr == old_preview.nr || p.second.nr == new_preview.nr)
-            //     p.second.show_icon();
-
+          if (old_nr != new_preview.nr) {
             d["requestType"] = "GetSceneItemList";
             d["requestData"]["sceneName"] = current_preview;
 
@@ -548,7 +544,7 @@ namespace obs {
                 current_sources.emplace_back(s["sceneItemEnabled"].asBool() ? "true"s : "false"s);
               }
             }
-            button_update(button_class::sources);
+            button_update(button_class::sources | button_class::preview);
           }
         }
         break;
@@ -1107,6 +1103,8 @@ namespace obs {
       for (const auto& s : val["scene-items"])
         vs.emplace(vs.begin() + 1, s["source-name"].asString());
       type = work_request::work_type::sourceorder;
+    } else if (event_type == "SceneTransitionStarted") {
+      // Ignore
     } else {
       if (log_unknown_events)
         std::cout << "info::callback unhandled event = " << val << std::endl;
