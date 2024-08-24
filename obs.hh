@@ -162,7 +162,6 @@ namespace obs {
         new_session,
         buttons,
         scene,
-        scenecontent,
         visible,
         preview,
         transition,
@@ -249,10 +248,17 @@ namespace obs {
 
     bool ignore_next_transition_change = false;
 
+    struct name_enabled_type {
+      std::string uuid { };
+      std::string name { };
+      unsigned id = 0;
+      bool enabled = false;
+    };
+
     std::unordered_map<std::string,obs::scene> scenes;
     std::string current_scene;
     std::string saved_scene;
-    std::vector<std::string> current_sources;
+    std::vector<name_enabled_type> current_sources;
     std::string current_preview;
     std::string saved_preview;
     std::unordered_map<std::string,obs::transition> transitions;

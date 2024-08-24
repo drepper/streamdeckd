@@ -199,14 +199,15 @@ namespace obs {
       obsws::emit(d);
       break;
     case keyop_type::source:
-      if (2 * (nr - 1) < i->current_sources.size() && (! i->ftb.active() || i->studio_mode)) {
+      assert(nr > 0);
+      if (nr <= i->current_sources.size() && (! i->ftb.active() || i->studio_mode)) {
         d["requestType"] = "SetSceneItemEnabled";
         d["requestData"]["sceneName"] = i->studio_mode ? i->current_preview : i->current_scene;
-        d["requestData"]["sceneItemId"] = nr;
-        d["requestData"]["sceneItemEnabled"] = i->current_sources[2 * (nr - 1) + 1] == "false";
+        d["requestData"]["sceneItemId"] = i->current_sources[nr - 1].id;
+        d["requestData"]["sceneItemEnabled"] = ! i->current_sources[nr - 1].enabled;
         obsws::emit(d);
 
-        i->current_sources[2 * (nr - 1) + 1] = i->current_sources[2 * (nr - 1) + 1] == "false" ? "true" : "false";
+        i->current_sources[nr - 1].enabled = ! i->current_sources[nr - 1].enabled;
         show_icon();
       }
       break;
@@ -290,9 +291,9 @@ namespace obs {
   void source_button::show_icon()
   {
     if (i->connected && (! i->ftb.active() || i->studio_mode)) {
-      unsigned idx = 2 * (base_type::nr - 1u);
+      unsigned idx = base_type::nr - 1;
       if (idx < i->current_sources.size()) {
-        auto str = i->current_sources[idx];
+        auto& str = i->current_sources[idx].name;
         std::vector<std::string> vs;
         if (str.size() <= 5)
           vs.emplace_back(str);
@@ -301,7 +302,7 @@ namespace obs {
           vs = std::vector(std::istream_iterator<std::string>{iss}, std::istream_iterator<std::string>());
         }
 
-        if (i->current_sources[idx + 1] == "true") {
+        if (i->current_sources[idx].enabled) {
           font_render<render_to_image> renderobj(fontobj, background, 0.8, 0.8);
           setkey_image(page, row, column, renderobj.draw(vs, i->im_black, 0.5, 0.5));
         } else {
@@ -494,33 +495,26 @@ namespace obs {
             if (auto res = obsws::call(d); res["requestStatus"]["result"].asBool()) {
               current_sources.clear();
               for (const auto& s : res["responseData"]["sceneItems"]) {
-                current_sources.emplace_back(s["sourceName"].asString());
-                current_sources.emplace_back(s["sceneItemEnabled"].asBool() ? "true"s : "false"s);
+                auto idx = s["sceneItemIndex"].asUInt();
+                if (current_sources.size() <= idx)
+                  current_sources.resize(idx + 1);
+                current_sources[idx].uuid = s["sourceUuid"].asString();
+                current_sources[idx].name = s["sourceName"].asString();
+                current_sources[idx].id = s["sceneItemId"].asUInt();
+                current_sources[idx].enabled = s["sceneItemEnabled"].asBool();
               }
             }
             button_update(button_class::sources);
           }
         }
         break;
-      case work_request::work_type::scenecontent:
-        if (! studio_mode) {
-          if (req.names[0] != current_scene)
-            // XYZ To do.  Should not happen but can be rectified by requesting scene content
-            abort();
-          else
-            req.names.erase(req.names.begin());
-          current_sources = std::move(req.names);
-          button_update(button_class::sources);
-        }
-        break;
       case work_request::work_type::visible:
         assert(req.names.size() == 2);
-        assert(req.nr > 0 && req.nr - 1 < current_sources.size());
-        if (req.names[0] == (studio_mode ? current_preview : current_scene) && req.nr > 0 && req.nr - 1 < current_sources.size()) {
-          current_sources[req.nr * 2 + 1] = std::move(req.names[1]);
-          for (auto& p : source_buttons)
-            if (p.second.nr == req.nr)
-              p.second.show_icon();
+        if (req.names[0] == (studio_mode ? current_preview : current_scene)) {
+          auto it = std::ranges::find_if(current_sources, [id=req.nr](const auto& s) { return s.id == id; });
+          assert(it != current_sources.end());
+          it->enabled = req.names[1] == "true";
+          button_update(button_class::sources);
           break;
         }
         break;
@@ -540,8 +534,13 @@ namespace obs {
             if (auto res = obsws::call(d); res["requestStatus"]["result"].asBool()) {
               current_sources.clear();
               for (const auto& s : res["responseData"]["sceneItems"]) {
-                current_sources.emplace_back(s["sourceName"].asString());
-                current_sources.emplace_back(s["sceneItemEnabled"].asBool() ? "true"s : "false"s);
+                auto idx = s["sceneItemIndex"].asUInt();
+                if (current_sources.size() <= idx)
+                  current_sources.resize(idx + 1);
+                current_sources[idx].uuid = s["sourceUuid"].asString();
+                current_sources[idx].name = s["sourceName"].asString();
+                current_sources[idx].id = s["sceneItemId"].asUInt();
+                current_sources[idx].enabled = s["sceneItemEnabled"].asBool();
               }
             }
             button_update(button_class::sources | button_class::preview);
@@ -647,21 +646,38 @@ namespace obs {
         if (auto res = obsws::call(d); res["requestStatus"]["result"].asBool()) {
           current_sources.clear();
           for (const auto& s : res["responseData"]["sceneItems"]) {
-            current_sources.emplace_back(s["sourceName"].asString());
-            current_sources.emplace_back(s["sceneItemEnabled"].asBool() ? "true"s : "false"s);
+            auto idx = s["sceneItemIndex"].asUInt();
+            if (current_sources.size() <= idx)
+              current_sources.resize(idx + 1);
+            current_sources[idx].uuid = s["sourceUuid"].asString();
+            current_sources[idx].name = s["sourceName"].asString();
+            current_sources[idx].id = s["sceneItemId"].asUInt();
+            current_sources[idx].enabled = s["sceneItemEnabled"].asBool();
           }
         }
         button_update(button_class::all ^ button_class::live ^ button_class::record ^ button_class::transition);
         break;
       case work_request::work_type::sourcename:
-        for (size_t i = 0; 2 * i < current_sources.size(); ++i)
-          if (current_sources[i] == req.names[0]) {
-            current_sources[i] = req.names[1];
+        assert(req.names.size() == 3);
+        for (size_t idx = 0; idx < current_sources.size(); ++idx)
+          if (current_sources[idx].uuid == req.names[0]) {
+            assert(current_sources[idx].name == req.names[1]);
+            current_sources[idx].name = std::move(req.names[2]);
             for (auto& e : source_buttons)
-              if (e.second.nr == 1 + i)
+              if (e.second.nr == 1 + idx) {
                 e.second.show_icon();
+                break;
+              }
             break;
           }
+        // for (size_t i = 0; 2 * i < current_sources.size(); ++i)
+        //   if (current_sources[i] == req.names[0]) {
+        //     current_sources[i] = req.names[1];
+        //     for (auto& e : source_buttons)
+        //       if (e.second.nr == 1 + i)
+        //         e.second.show_icon();
+        //     break;
+        //   }
         break;
       case work_request::work_type::transitionend:
         if (ignore_next_transition_change && req.names[1] == "Cut") {
@@ -704,16 +720,27 @@ namespace obs {
         }
         break;
       case work_request::work_type::sourceorder:
-        if ((studio_mode && req.names[0] == current_preview) || (!studio_mode && req.names[0] == current_scene)) {
+        if ((studio_mode && req.names[0] == current_preview) || (! studio_mode && req.names[0] == current_scene)) {
           req.names.erase(req.names.begin());
-          auto it = req.names.begin();
-          while (it != req.names.end()) {
-            auto it2 = std::find(current_sources.begin(), current_sources.end(), *it);
-            assert(it2 != current_sources.end());
-            it = req.names.emplace(it + 1, std::move(*(it2 + 1)));
-            ++it;
+          assert(req.names.size() > 2);
+          assert(req.names.size() % 2 == 0);
+          std::vector<size_t> new_order;
+          for (size_t i = 0; i < req.names.size(); i += 2) {
+            unsigned id = std::atoi(req.names[i].c_str());
+            unsigned idx = std::atoi(req.names[i + 1].c_str());
+            size_t j;
+            for (j = 0; j < current_sources.size(); ++j)
+              if (current_sources[j].id == id)
+                break;
+            assert(j < current_sources.size());
+            if (idx >= new_order.size())
+              new_order.resize(idx + 1);
+            new_order[idx] = j;
           }
-          current_sources = std::move(req.names);
+          decltype(current_sources) new_sources;
+          for (auto idx : new_order)
+            new_sources.emplace_back(std::move(current_sources[idx]));
+          current_sources = std::move(new_sources);
           button_update(button_class::sources);
         }
         break;
@@ -826,16 +853,22 @@ namespace obs {
     d.clear();
     d["requestType"] = "GetSceneItemList";
     d["requestData"]["sceneName"] = studio_mode ? current_preview : current_scene;
-    auto res = obsws::call(d);
-    if (res["requestStatus"]["result"].asBool()) {
+    if (auto res = obsws::call(d); res["requestStatus"]["result"].asBool()) {
       current_sources.clear();
-      for (const auto& src : res["responseData"]["sceneItems"]) {
-        current_sources.emplace_back(src["sourceName"].asString());
-        current_sources.emplace_back(src["sceneItemEnabled"].asBool() ? "true" : "false");
+      for (const auto& s : res["responseData"]["sceneItems"]) {
+        auto idx = s["sceneItemIndex"].asUInt();
+        if (current_sources.size() <= idx)
+          current_sources.resize(idx + 1);
+        current_sources[idx].uuid = s["sourceUuid"].asString();
+        current_sources[idx].name = s["sourceName"].asString();
+        current_sources[idx].id = s["sceneItemId"].asUInt();
+        current_sources[idx].enabled = s["sceneItemEnabled"].asBool();
       }
     }
 
     connected = true;
+
+    button_update(button_class::all);
   }
 
 
@@ -1067,14 +1100,6 @@ namespace obs {
     } else if (event_type == "StudioModeStateChanged") {
       nr = val["eventData"]["studioModeEnabled"].asBool();
       type = work_request::work_type::studiomode;
-    } else if (event_type == "SwitchScenes") {
-      // TODO
-      vs.emplace_back(val["scene-name"].asString());
-      for (const auto& s : val["sources"]) {
-        vs.emplace_back(s["name"].asString());
-        vs.emplace_back(s["render"].asBool() ? "true" : "false");
-      }
-      type = work_request::work_type::scenecontent;
     } else if (event_type == "SceneItemEnableStateChanged") {
       vs.emplace_back(val["eventData"]["sceneName"].asString());
       vs.emplace_back(val["eventData"]["sceneItemEnabled"].asBool() ? "true" : "false");
@@ -1086,10 +1111,10 @@ namespace obs {
       vs.emplace_back(val["item-name"].asString());
       vs.emplace_back(val["transform"]["visible"].asString());
       type = work_request::work_type::visible;
-    } else if (event_type == "SourceRenamed") {
-      // TODO
-      vs.emplace_back(val["previousName"].asString());
-      vs.emplace_back(val["newName"].asString());
+    } else if (event_type == "InputNameChanged") {
+      vs.emplace_back(val["eventData"]["inputUuid"].asString());
+      vs.emplace_back(val["eventData"]["oldInputName"].asString());
+      vs.emplace_back(val["eventData"]["inputName"].asString());
       type = work_request::work_type::sourcename;
     } else if (event_type == "TransitionEnd") {
       // TODO
@@ -1097,13 +1122,16 @@ namespace obs {
       vs.emplace_back(val["name"].asString());
       vs.emplace_back(val["to-scene"].asString());
       type = work_request::work_type::transitionend;
-    } else if (event_type == "SourceOrderChanged") {
-      // TODO
-      vs.emplace_back(val["scene-name"].asString());
-      for (const auto& s : val["scene-items"])
-        vs.emplace(vs.begin() + 1, s["source-name"].asString());
+    } else if (event_type == "SceneItemListReindexed") {
+      vs.emplace_back(val["eventData"]["sceneName"].asString());
+      for (const auto& s : val["eventData"]["sceneItems"]) {
+        vs.emplace_back(s["sceneItemId"].asString());
+        vs.emplace_back(s["sceneItemIndex"].asString());
+      }
       type = work_request::work_type::sourceorder;
     } else if (event_type == "SceneTransitionStarted") {
+      // Ignore
+    } else if (event_type == "SceneItemSelected") {
       // Ignore
     } else {
       if (log_unknown_events)
