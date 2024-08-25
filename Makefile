@@ -1,4 +1,4 @@
-VERSION = 3.3
+VERSION = 3.4
 RELEASE = 1
 CC = gcc $(CSTD)
 CXX = g++ $(CXXSTD)
