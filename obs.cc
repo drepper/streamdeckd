@@ -116,11 +116,7 @@ namespace obs {
       if (! i->ftb.active()) {
         i->ignore_next_transition_change = true;
         d["requestType"] = "SetCurrentSceneTransition";
-        d["requestData"]["transitionName"] = "Fade";
-        batch["requests"].append(d);
-        d.clear();
-        d["requestType"] = "SetCurrentSceneTransitionDuration";
-        d["requestData"]["transitionDuration"] = 0;
+        d["requestData"]["transitionName"] = "Cut";
         batch["requests"].append(d);
         d.clear();
         d["requestType"] = "TriggerStudioModeTransition";
@@ -588,6 +584,22 @@ namespace obs {
           }
         }
         break;
+      case work_request::work_type::new_source:
+        if (req.names[1] == (studio_mode ? current_preview : current_scene)) {
+          current_sources.emplace(current_sources.begin() + req.nr, std::move(req.names[3]), std::move(req.names[2]), unsigned(std::atoi(req.names[0].c_str())), true);
+          button_update(button_class::sources);
+        }
+        break;
+      case work_request::work_type::remove_source:
+        if (req.names[0] == (studio_mode ? current_preview : current_scene)) {
+          for (auto it = current_sources.begin(); it != current_sources.end(); ++it)
+            if (it->uuid == req.names[1]) {
+              current_sources.erase(it);
+              button_update(button_class::sources);
+              break;
+            }
+        }
+        break;
       case work_request::work_type::recording:
         is_recording = req.nr != 0;
         button_update(button_class::record);
@@ -670,44 +682,38 @@ namespace obs {
               }
             break;
           }
-        // for (size_t i = 0; 2 * i < current_sources.size(); ++i)
-        //   if (current_sources[i] == req.names[0]) {
-        //     current_sources[i] = req.names[1];
-        //     for (auto& e : source_buttons)
-        //       if (e.second.nr == 1 + i)
-        //         e.second.show_icon();
-        //     break;
-        //   }
         break;
       case work_request::work_type::transitionend:
-        if (ignore_next_transition_change && req.names[1] == "Cut") {
+        if (ignore_next_transition_change && req.names[0] == "Cut") {
           ignore_next_transition_change = false;
           batch.clear();
           d["requestType"] = "SetCurrentSceneTransition";
-          d["transitionName"] = current_transition;
+          d["requestData"]["transitionName"] = current_transition;
           batch["requests"].append(d);
           d.clear();
           d["requestType"] = "SetCurrentSceneTransitionDuration";
-          d["transitionDuration"] = current_duration_ms;
+          d["requestData"]["transitionDuration"] = current_duration_ms;
           batch["requests"].append(d);
           obsws::batch(batch);
-        } else if (ignore_next_transition_change && req.names[1] == "Fade") {
+        } else if (ignore_next_transition_change && req.names[0] == "Fade") {
           ignore_next_transition_change = false;
           batch.clear();
           d["requestType"] = "SetCurrentSceneTransition";
-          d["transitionName"] = current_transition;
+          d["requestData"]["transitionName"] = current_transition;
           batch["requests"].append(d);
           d.clear();
           d["requestType"] = "SetCurrentSceneTransitionDuration";
-          d["transitionDuration"] = current_duration_ms;
+          d["requestData"]["transitionDuration"] = current_duration_ms;
           batch["requests"].append(d);
-          if (req.names[2] != "Black" && studio_mode) {
-            d.clear();
-            d["requestType"] = "SetCurrentPreviewScene";
-            d["sceneName"] = saved_preview;
-            saved_preview.clear();
-            batch["requests"].append(d);
-          }
+
+          // XYZ Need to handle FadeToBlack and the changed preview
+          // if (req.names[2] != "Black" && studio_mode) {
+          //   d.clear();
+          //   d["requestType"] = "SetCurrentPreviewScene";
+          //   d["requestData"]["sceneName"] = saved_preview;
+          //   saved_preview.clear();
+          //   batch["requests"].append(d);
+          // }
           obsws::batch(batch);
           button_update(button_class::ftb | button_class::live | button_class::preview | button_class::cut | button_class::auto_ | button_class::transition);
         }
@@ -1075,13 +1081,17 @@ namespace obs {
     else if (event_type == "CurrentSceneTransitionDurationChanged") {
       nr = val["eventData"]["transitionDuration"].asUInt();
       type = work_request::work_type::duration;
-    } else if (event_type == "SourceCreated" || event_type == "SourceDestroyed") {
-      // TODO
-      if (val["sourceType"] == "scene") {
-        vs.emplace_back(val["sourceName"].asString());
-        type = event_type == "SourceCreated" ? work_request::work_type::new_scene : work_request::work_type::delete_scene;
-      } else
-        return;
+    } else if (event_type == "SceneItemCreated") {
+      vs.emplace_back(val["eventData"]["sceneItemId"].asString());
+      vs.emplace_back(val["eventData"]["sceneName"].asString());
+      vs.emplace_back(val["eventData"]["sourceName"].asString());
+      vs.emplace_back(val["eventData"]["sourceUuid"].asString());
+      nr = val["eventData"]["sceneItemIndex"].asUInt();
+      type = work_request::work_type::new_source;
+    } else if (event_type == "SceneItemRemoved") {
+      vs.emplace_back(val["eventData"]["sceneName"].asString());
+      vs.emplace_back(val["eventData"]["sourceUuid"].asString());
+      type = work_request::work_type::remove_source;
     } else if (event_type == "RecordStateChanged") {
       vs.emplace_back(val["eventData"]["outputPath"].asString());
       nr = val["eventData"]["outputActive"].asBool();
@@ -1105,22 +1115,13 @@ namespace obs {
       vs.emplace_back(val["eventData"]["sceneItemEnabled"].asBool() ? "true" : "false");
       nr = val["eventData"]["sceneItemId"].asUInt();
       type = work_request::work_type::visible;
-    } else if (event_type == "SceneItemTransformChanged") {
-      // TODO
-      vs.emplace_back(val["scene-name"].asString());
-      vs.emplace_back(val["item-name"].asString());
-      vs.emplace_back(val["transform"]["visible"].asString());
-      type = work_request::work_type::visible;
     } else if (event_type == "InputNameChanged") {
       vs.emplace_back(val["eventData"]["inputUuid"].asString());
       vs.emplace_back(val["eventData"]["oldInputName"].asString());
       vs.emplace_back(val["eventData"]["inputName"].asString());
       type = work_request::work_type::sourcename;
-    } else if (event_type == "TransitionEnd") {
-      // TODO
-      vs.emplace_back(val["to-scene"].asString());
-      vs.emplace_back(val["name"].asString());
-      vs.emplace_back(val["to-scene"].asString());
+    } else if (event_type == "SceneTransitionEnded") {
+      vs.emplace_back(val["eventData"]["transitionName"].asString());
       type = work_request::work_type::transitionend;
     } else if (event_type == "SceneItemListReindexed") {
       vs.emplace_back(val["eventData"]["sceneName"].asString());
@@ -1131,7 +1132,21 @@ namespace obs {
       type = work_request::work_type::sourceorder;
     } else if (event_type == "SceneTransitionStarted") {
       // Ignore
+    } else if (event_type == "SceneTransitionVideoEnded") {
+      // Ignore
     } else if (event_type == "SceneItemSelected") {
+      // Ignore
+    } else if (event_type == "SceneNameChanged") {
+      // Ignore
+    } else if (event_type == "InputCreated") {
+      // Ignore
+    } else if (event_type == "InputRemoved") {
+      // Ignore
+    } else if (event_type == "SceneCreated") {
+      // Ignore
+    } else if (event_type == "SceneRemoved") {
+      // Ignore
+    } else if (event_type == "SceneItemTransformChanged") {
       // Ignore
     } else {
       if (log_unknown_events)

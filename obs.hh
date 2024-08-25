@@ -176,6 +176,8 @@ namespace obs {
         transitionend,
         duration,
         sourceorder,
+        new_source,
+        remove_source,
     } type;
     unsigned nr = 0;
     std::vector<std::string> names;

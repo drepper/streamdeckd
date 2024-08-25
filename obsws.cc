@@ -479,12 +479,12 @@ namespace {
                 event_cb(d);
             } else if (op == 7) {
               if (d.isMember("requestId") && d.isMember("requestStatus")) {
-                std::cout << "---------------------\n";
-                for (const auto& e : outstanding)
-                  std::cout << e.d << std::endl;
-                std::cout << "---------------------\n";
-                std::cout << d << std::endl;
-                std::cout << "---------------------\n";
+                // std::cout << "---------------------\n";
+                // for (const auto& e : outstanding)
+                //   std::cout << e.d << std::endl;
+                // std::cout << "---------------------\n";
+                // std::cout << d << std::endl;
+                // std::cout << "---------------------\n";
 
                 auto queued = std::find_if(outstanding.begin(), outstanding.end(), [s=d["requestId"].asString()](const auto& e){ return s == e.d["d"]["requestId"].asString(); });
                 assert(queued != outstanding.end());
@@ -497,12 +497,12 @@ namespace {
               }
             } else if (op == 9) {
               if (d.isMember("requestId") && d.isMember("results")) {
-                std::cout << "---------------------\n";
-                for (const auto& e : outstanding)
-                  std::cout << e.d << std::endl;
-                std::cout << "---------------------\n";
-                std::cout << d << std::endl;
-                std::cout << "---------------------\n";
+                // std::cout << "---------------------\n";
+                // for (const auto& e : outstanding)
+                //   std::cout << e.d << std::endl;
+                // std::cout << "---------------------\n";
+                // std::cout << d << std::endl;
+                // std::cout << "---------------------\n";
 
                 auto queued = std::find_if(outstanding.begin(), outstanding.end(), [s=d["requestId"].asString()](const auto& e){ return s == e.d["d"]["requestId"].asString(); });
                 assert(queued != outstanding.end());
