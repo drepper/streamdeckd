@@ -1148,6 +1148,8 @@ namespace obs {
       // Ignore
     } else if (event_type == "SceneItemTransformChanged") {
       // Ignore
+    } else if (event_type == "InputSettingsChanged") {
+      // Ignore
     } else {
       if (log_unknown_events)
         std::cout << "info::callback unhandled event = " << val << std::endl;
