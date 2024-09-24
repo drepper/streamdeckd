@@ -1,10 +1,12 @@
 #include <cerrno>
 #include <cstdlib>
 #include <filesystem>
+#include <memory>
 #include <regex>
 
 #include <error.h>
 #include <pwd.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <sys/poll.h>
 
@@ -264,6 +266,93 @@ namespace {
   };
 
 
+  struct tasmota final : public action {
+    using base_type = action;
+
+    tasmota(unsigned k, const libconfig::Setting& setting, streamdeck::device_type& dev_, std::string&& device_, std::string&& icon_off, std::string&& icon_on): base_type(k, setting, dev_), device(std::move(device_)) {
+      icon1 = dev.register_image(find_image(icon_off));
+      icon2 = dev.register_image(find_image(icon_on));
+      send("Power");
+    }
+
+    void call() override {
+      if (send(is_on ? "Power%20On" : "Power%20Off"))
+        show_icon();
+    }
+
+    void show_icon() override
+    {
+      dev.set_key_image(key, is_on ? icon2 : icon1);
+    }
+
+  private:
+    std::string device;
+    int icon2;
+    bool is_on = false;
+
+    bool send(const char* cmd);
+  };
+
+
+  bool tasmota::send(const char* cmd)
+  {
+    bool changed = false;
+
+    auto uri = std::format("GET /cm?cmnd={} HTTP/1.1\n\n", cmd);
+
+    addrinfo* addrs = nullptr;
+    addrinfo hints { .ai_socktype = SOCK_STREAM };
+    if (getaddrinfo(device.c_str(), "80", &hints, &addrs) == 0) {
+      for (auto ai = addrs; ai != nullptr; ai = ai->ai_next) {
+        int sockfd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+        if (sockfd == -1)
+          continue;
+        if (connect(sockfd, ai->ai_addr, ai->ai_addrlen) != -1) {
+          close(sockfd);
+          continue;
+        }
+        if (write(sockfd, uri.c_str(), uri.size()) == ssize_t(uri.size())) {
+          close(sockfd);
+          continue;
+        }
+
+        char buffer[1024];
+        size_t filled = 0;
+        ssize_t nread;
+        while ((nread = TEMP_FAILURE_RETRY(read(sockfd, buffer + filled, sizeof(buffer) - filled))) > 0) {
+          filled += nread;
+          if (filled == sizeof(buffer))
+            // Should never happen.
+            abort();
+        }
+        close(sockfd);
+
+        if (nread < 0)
+          continue;
+
+        if (memmem(buffer, filled, "HTTP/1.1 200 OK", 15) == nullptr)
+          continue;
+        auto json = static_cast<char*>(memmem(buffer, filled, "\n{\"POWER\":\"", 11));
+        if (json == nullptr)
+          continue;
+        json += 11;
+
+        if (buffer + 3 >= json + filled)
+          continue;
+
+        bool s = memcmp(json, "ON", 2) == 0;
+        changed = s != is_on;
+        is_on = s;
+        break;
+      }
+    }
+
+    freeaddrinfo(addrs);
+
+    return changed;
+  }
+
+
   struct pageaction final : public action {
     using base_type = action;
 
@@ -457,6 +546,12 @@ namespace {
                     actions[kidx] = std::make_unique<keypress>(k, key, *dev, std::move(l), xdo);
                 }
               }
+            } else if (obs && std::string(key["type"]) == "tasmota") {
+              std::string device = key.exists("device") ? key["device"] : "";
+              std::string icon_off = key.exists("icon_off") ? key["icon_off"] : "";
+              std::string icon_on = key.exists("icon_on") ? key["icon_on"] : "";
+              if (! device.empty() && ! icon_off.empty() && ! icon_on.empty())
+                actions[kidx] = std::make_unique<tasmota>(k, key, *dev, std::move(device), std::move(icon_off), std::move(icon_on));
             } else if (obs && std::string(key["type"]) == "obs") {
               if (auto b = obs->parse_key([this](unsigned page, unsigned row, unsigned column, Magick::Image&& image){ setkey(page, row, column, std::move(image)); }, [this](unsigned page, unsigned row, unsigned column, int handle){ setkey(page, row, column, handle); }, pagenr, row, column, key); b != nullptr)
                 actions[kidx] = std::make_unique<obsaction>(k, key, *dev, b);
