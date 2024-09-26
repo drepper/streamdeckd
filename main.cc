@@ -6,9 +6,9 @@
 
 #include <error.h>
 #include <pwd.h>
-#include <sys/types.h>
 #include <unistd.h>
 #include <sys/poll.h>
+#include <sys/types.h>
 
 #include <libconfig.h++>
 #include <giomm.h>
@@ -276,7 +276,7 @@ namespace {
     }
 
     void call() override {
-      if (send(is_on ? "Power%20On" : "Power%20Off"))
+      if (send(is_on ? "Power%20Off" : "Power%20On"))
         show_icon();
     }
 
@@ -298,55 +298,72 @@ namespace {
   {
     bool changed = false;
 
-    auto uri = std::format("GET /cm?cmnd={} HTTP/1.1\n\n", cmd);
+    auto uri = std::format("GET /cm?cmnd={} HTTP/1.1\r\n\r\n", cmd);
 
     addrinfo* addrs = nullptr;
-    addrinfo hints { .ai_socktype = SOCK_STREAM };
+    addrinfo hints {.ai_flags = AI_ADDRCONFIG | AI_NUMERICSERV,  .ai_socktype = SOCK_STREAM };
     if (getaddrinfo(device.c_str(), "80", &hints, &addrs) == 0) {
       for (auto ai = addrs; ai != nullptr; ai = ai->ai_next) {
-        int sockfd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-        if (sockfd == -1)
-          continue;
-        if (connect(sockfd, ai->ai_addr, ai->ai_addrlen) != -1) {
+        // The Tasmota devices time out quickly.  Try more than once.
+        unsigned ntries = 3;
+
+        while (ntries--) {
+          int sockfd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+          if (sockfd == -1) [[unlikely]]
+            goto out;
+          if (connect(sockfd, ai->ai_addr, ai->ai_addrlen) == -1) [[unlikely]] {
+            close(sockfd);
+            break;
+          }
+          if (write(sockfd, uri.data(), uri.size()) != ssize_t(uri.size())) [[unlikely]] {
+            close(sockfd);
+            goto out;
+          }
+
+          pollfd fds[1] = { { sockfd, POLLIN } };
+          if (auto n = poll(fds, 1, 2000); n == 0) {
+            // Timeout.
+            close(sockfd);
+            continue;
+          } else if (n == -1) [[unlikely]] {
+            close(sockfd);
+            goto out;
+          }
+
+          char buffer[1024];
+          size_t filled = 0;
+          ssize_t nread;
+          while ((nread = TEMP_FAILURE_RETRY(read(sockfd, buffer + filled, sizeof(buffer) - filled))) > 0) {
+            filled += nread;
+            if (filled == sizeof(buffer))
+              // Should never happen.
+              abort();
+          }
           close(sockfd);
-          continue;
+
+          if (nread < 0)
+            goto out;
+
+          if (memmem(buffer, filled, "HTTP/1.1 200 OK", 15) == nullptr)
+            goto out;
+          auto json = static_cast<char*>(memmem(buffer, filled, "\n{\"POWER\":\"", 11));
+          if (json == nullptr)
+            goto out;
+          json += 11;
+
+          if (json + 3 >= buffer + filled)
+            goto out;
+
+          bool s = memcmp(json, "ON", 2) == 0;
+          changed = s != is_on;
+          is_on = s;
+
+          goto out;
         }
-        if (write(sockfd, uri.c_str(), uri.size()) == ssize_t(uri.size())) {
-          close(sockfd);
-          continue;
-        }
-
-        char buffer[1024];
-        size_t filled = 0;
-        ssize_t nread;
-        while ((nread = TEMP_FAILURE_RETRY(read(sockfd, buffer + filled, sizeof(buffer) - filled))) > 0) {
-          filled += nread;
-          if (filled == sizeof(buffer))
-            // Should never happen.
-            abort();
-        }
-        close(sockfd);
-
-        if (nread < 0)
-          continue;
-
-        if (memmem(buffer, filled, "HTTP/1.1 200 OK", 15) == nullptr)
-          continue;
-        auto json = static_cast<char*>(memmem(buffer, filled, "\n{\"POWER\":\"", 11));
-        if (json == nullptr)
-          continue;
-        json += 11;
-
-        if (buffer + 3 >= json + filled)
-          continue;
-
-        bool s = memcmp(json, "ON", 2) == 0;
-        changed = s != is_on;
-        is_on = s;
-        break;
       }
     }
 
+  out:
     freeaddrinfo(addrs);
 
     return changed;
