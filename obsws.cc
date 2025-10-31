@@ -13,14 +13,14 @@
 #include <stdexcept>
 #include <thread>
 
-#include <json/json.h>
 #include <libwebsockets.h>
-#include <uuid.h>
+#include <json/json.h>
+#include <uuid/uuid.h>
 
 #if __cpp_lib_atomic_wait == 0
 # include <cerrno>
-# include <sys/syscall.h>
 # include <linux/futex.h>
+# include <sys/syscall.h>
 #endif
 
 
@@ -31,32 +31,33 @@
 #if __has_include(<latch>) == 0
 namespace {
   struct replacement_latch {
-    explicit replacement_latch(std::ptrdiff_t expected_) : expected(expected_) { }
+    explicit replacement_latch(std::ptrdiff_t expected_) : expected(expected_) {}
     ~replacement_latch() = default;
 
     replacement_latch(const replacement_latch&) = delete;
     replacement_latch& operator=(const replacement_latch&) = delete;
 
-    void count_down(std::ptrdiff_t n = 1) {
+    void count_down(std::ptrdiff_t n = 1)
+    {
       std::lock_guard<std::mutex> lk(m);
       if ((expected -= n) == 0)
         cv.notify_all();
     }
 
-    void wait() {
+    void wait()
+    {
       std::unique_lock<std::mutex> lock(m);
-      cv.wait(lock, [this]{ return expected == 0; });
+      cv.wait(lock, [this] { return expected == 0; });
     }
 
-    bool try_wait() const noexcept {
-      return expected == 0;
-    }
+    bool try_wait() const noexcept { return expected == 0; }
+
   private:
     std::atomic<std::ptrdiff_t> expected;
     std::mutex m;
     std::condition_variable cv;
   };
-}
+} // anonymous namespace
 
 namespace std {
   using latch = replacement_latch;
@@ -98,19 +99,11 @@ namespace {
   }
 #endif
 
-  enum struct ws_status {
-    idle,
-    connecting,
-    identifying,
-    connected,
-    running,
-    writable,
-    terminated
-  };
+  enum struct ws_status { idle, connecting, identifying, connected, running, writable, terminated };
 
 
   struct request {
-    request(Json::Value&& d_, bool emit_, std::ptrdiff_t lc) : d(std::move(d_)), emit(emit_), l(lc) { }
+    request(Json::Value&& d_, bool emit_, std::ptrdiff_t lc) : d(std::move(d_)), emit(emit_), l(lc) {}
 
     Json::Value d;
     bool emit;
@@ -126,14 +119,28 @@ namespace {
 
 
   struct client {
-    client(obsws::event_cb_type event_cb_, obsws::update_cb_type update_cb_, const char* server_, unsigned port_, const std::string& password_, const char* log, int ssl_connection_, const char* ssl_ca_path, const uint32_t* backoff_ms, uint16_t nbackoff_ms, uint16_t secs_since_valid_ping, uint16_t secs_since_valid_hangup, uint8_t jitter_percent);
-    ~client() { status = ws_status::terminated; atomic_notify_all(status); thread.join(); }
+    client(
+        obsws::event_cb_type event_cb_, obsws::update_cb_type update_cb_, const char* server_, unsigned port_, const std::string& password_, const char* log, int ssl_connection_, const char* ssl_ca_path, const uint32_t* backoff_ms, uint16_t nbackoff_ms, uint16_t secs_since_valid_ping,
+        uint16_t secs_since_valid_hangup, uint8_t jitter_percent
+    );
+    ~client()
+    {
+      status = ws_status::terminated;
+      atomic_notify_all(status);
+      thread.join();
+    }
 
-    static auto allocate(obsws::event_cb_type event_cb, obsws::update_cb_type update_cb_, const char* server, unsigned port, const std::string& password_, const char* log, int ssl_connection = LCCSCF_USE_SSL | LCCSCF_ALLOW_INSECURE | LCCSCF_ALLOW_EXPIRED | LCCSCF_ALLOW_SELFSIGNED, const char* ssl_ca_path = nullptr, const uint32_t* backoff_ms = init_backoff_ms, uint16_t nbackoff_ms = LWS_ARRAY_SIZE(init_backoff_ms), uint16_t secs_since_valid_ping = 3, uint16_t secs_since_valid_hangup = 10, uint8_t jitter_percent = 20)
-    { return std::make_unique<client>(event_cb, update_cb_, server, port, password_, log, ssl_connection, ssl_ca_path, backoff_ms, nbackoff_ms, secs_since_valid_ping, secs_since_valid_hangup, jitter_percent); }
+    static auto allocate(
+        obsws::event_cb_type event_cb, obsws::update_cb_type update_cb_, const char* server, unsigned port, const std::string& password_, const char* log, int ssl_connection = LCCSCF_USE_SSL | LCCSCF_ALLOW_INSECURE | LCCSCF_ALLOW_EXPIRED | LCCSCF_ALLOW_SELFSIGNED, const char* ssl_ca_path = nullptr,
+        const uint32_t* backoff_ms = init_backoff_ms, uint16_t nbackoff_ms = LWS_ARRAY_SIZE(init_backoff_ms), uint16_t secs_since_valid_ping = 3, uint16_t secs_since_valid_hangup = 10, uint8_t jitter_percent = 20
+    )
+    {
+      return std::make_unique<client>(event_cb, update_cb_, server, port, password_, log, ssl_connection, ssl_ca_path, backoff_ms, nbackoff_ms, secs_since_valid_ping, secs_since_valid_hangup, jitter_percent);
+    }
 
     void run();
-    bool ensure_running() {
+    bool ensure_running()
+    {
       bool started = false;
       for (auto s = status.load(); s != ws_status::running && s != ws_status::writable; s = status.load()) {
         if (s == ws_status::terminated)
@@ -148,7 +155,8 @@ namespace {
       }
       return true;
     }
-    bool ensure_mark_writable() {
+    bool ensure_mark_writable()
+    {
       bool started = false;
       for (auto s = status.load(); s != ws_status::identifying && s != ws_status::writable; s = status.load()) {
         if (s == ws_status::terminated)
@@ -167,12 +175,13 @@ namespace {
     int send(const std::string& s);
     request& send(Json::Value&& root, bool emit);
 
-    void terminate() { status = ws_status::terminated; atomic_notify_all(status); }
-
-    static int callback(struct lws* wsi, enum lws_callback_reasons reason, void* user, void* in, size_t len)
+    void terminate()
     {
-      return ((client*) user)->callback(wsi, reason, in, len);
+      status = ws_status::terminated;
+      atomic_notify_all(status);
     }
+
+    static int callback(struct lws* wsi, enum lws_callback_reasons reason, void* user, void* in, size_t len) { return ((client*) user)->callback(wsi, reason, in, len); }
 
     template<bool emit>
     auto call_emit(const Json::Value& din, unsigned op)
@@ -207,10 +216,7 @@ namespace {
     static const char protocol_name[];
     static const uint32_t init_backoff_ms[3];
     static const uint32_t subsequent_backoff_ms[4];
-    const lws_protocols protocols[2] = {
-      { "obsws", callback, 0, 0 },
-      { nullptr, nullptr, 0, 0}
-    };
+    const lws_protocols protocols[2] = {{"obsws", callback, 0, 0}, {nullptr, nullptr, 0, 0}};
 
     std::unique_ptr<lws_context, lws_context_deleter> context;
     lws_retry_bo_t retry;
@@ -223,15 +229,15 @@ namespace {
     bool log_events;
     bool log_transmits;
 
-    std::unique_ptr<EVP_MD_CTX, void(*)(EVP_MD_CTX*)> shactx;
+    std::unique_ptr<EVP_MD_CTX, void (*)(EVP_MD_CTX*)> shactx;
 
     struct sul_wrapper {
       client* self;
-      lws_sorted_usec_list_t sul;  // schedule connection retry
+      lws_sorted_usec_list_t sul; // schedule connection retry
     } wrap;
-    lws* wsi = nullptr;            // related wsi if any
+    lws* wsi = nullptr; // related wsi if any
     std::atomic<ws_status> status = ws_status::idle;
-    uint16_t retry_count = 0;      // count of consequetive retries
+    uint16_t retry_count = 0; // count of consequetive retries
 
     std::thread thread;
     obsws::event_cb_type event_cb;
@@ -240,12 +246,13 @@ namespace {
     // Memory used to partial results.
     std::string chunks;
 
-    static void connect(lws_sorted_usec_list_t* sul) {
+    static void connect(lws_sorted_usec_list_t* sul)
+    {
       // Unfortunately the C interface of libwebsockets so far does not have any callbacks
       // with additional parameters passed in.  Resort to ugly pointer arithmetic.
       // We need a POD class to make this possible.  The 'client' class is not a POD so
       // an additional wrapper class is introduced with a pointer to the class.
-      static_cast<sul_wrapper*>((void*)((char*) sul - offsetof(sul_wrapper, sul)))->self->connect();
+      static_cast<sul_wrapper*>((void*) ((char*) sul - offsetof(sul_wrapper, sul)))->self->connect();
     }
 
     int callback(struct lws* wsi, enum lws_callback_reasons reason, void* in, size_t len);
@@ -261,17 +268,21 @@ namespace {
 
   const char client::protocol_name[] = "obswebsocket.json";
 
-  const uint32_t client::init_backoff_ms[3] = { 250, 500, 750 }; // XYZ Last number should be 2 minutes or so...
-  static constexpr uint32_t connect_timeout = 10000;  // XYZ Number should be 2 minutes or so...
-  const uint32_t client::subsequent_backoff_ms[4] = { connect_timeout, 250, 500, 750 };
+  const uint32_t client::init_backoff_ms[3] = {250, 500, 750}; // XYZ Last number should be 2 minutes or so...
+  static constexpr uint32_t connect_timeout = 10000;           // XYZ Number should be 2 minutes or so...
+  const uint32_t client::subsequent_backoff_ms[4] = {connect_timeout, 250, 500, 750};
+
+  lws_context_creation_info info;
 
 
-  client::client(obsws::event_cb_type event_cb_, obsws::update_cb_type update_cb_, const char* server_, unsigned port_, const std::string& password_, const char* log, int ssl_connection_, const char* ssl_ca_path, const uint32_t* backoff_ms, uint16_t nbackoff_ms, uint16_t secs_since_valid_ping, uint16_t secs_since_valid_hangup, uint8_t jitter_percent)
-  : retry{ .retry_ms_table = backoff_ms, .retry_ms_table_count = nbackoff_ms, .conceal_count = nbackoff_ms, .secs_since_valid_ping = secs_since_valid_ping, .secs_since_valid_hangup = secs_since_valid_hangup, .jitter_percent = jitter_percent },
-    ssl_connection(ssl_connection_), server(server_), port(port_), password(password_), log_events(strstr(log, "events") != nullptr), log_transmits(strstr(log, "transmits") != nullptr), shactx { EVP_MD_CTX_create(), &EVP_MD_CTX_free }, wrap{ this }, status(ws_status::connecting), event_cb(event_cb_), update_cb(update_cb_)
+  client::client(
+      obsws::event_cb_type event_cb_, obsws::update_cb_type update_cb_, const char* server_, unsigned port_, const std::string& password_, const char* log, int ssl_connection_, const char* ssl_ca_path, const uint32_t* backoff_ms, uint16_t nbackoff_ms, uint16_t secs_since_valid_ping,
+      uint16_t secs_since_valid_hangup, uint8_t jitter_percent
+  )
+      : retry{.retry_ms_table = backoff_ms, .retry_ms_table_count = nbackoff_ms, .conceal_count = nbackoff_ms, .secs_since_valid_ping = secs_since_valid_ping, .secs_since_valid_hangup = secs_since_valid_hangup, .jitter_percent = jitter_percent}, ssl_connection(ssl_connection_), server(server_),
+        port(port_), password(password_), log_events(strstr(log, "events") != nullptr), log_transmits(strstr(log, "transmits") != nullptr), shactx{EVP_MD_CTX_create(), &EVP_MD_CTX_free}, wrap{this}, status(ws_status::connecting), event_cb(event_cb_), update_cb(update_cb_)
   {
     // std::cout << "client::client\n";
-    lws_context_creation_info info;
     memset(&info, '\0', sizeof info);
     info.options = LWS_SERVER_OPTION_LIBUV;
     if (ssl_connection)
@@ -283,7 +294,8 @@ namespace {
     info.uid = -1;
     info.client_ssl_ca_filepath = ssl_ca_path;
 
-    context = std::unique_ptr<lws_context, lws_context_deleter>{ lws_create_context(&info) };
+#if 0
+    context = std::unique_ptr<lws_context, lws_context_deleter>{lws_create_context(&info)};
     if (context == nullptr)
       throw std::runtime_error("cannot create lws context");
 
@@ -293,6 +305,7 @@ namespace {
     // std::cout << "created context\n";
     /* schedule the first client connection attempt to happen immediately */
     lws_sul_schedule(context.get(), 0, &wrap.sul, client::connect, 1);
+#endif
 
     // std::cout << "client::client scheduled\n";
     thread = std::thread(&client::run, this);
@@ -350,12 +363,23 @@ namespace {
         exhausted();
       }
     }
-
   }
 
 
   void client::run()
   {
+    context = std::unique_ptr<lws_context, lws_context_deleter>{lws_create_context(&info)};
+    if (context == nullptr)
+      throw std::runtime_error("cannot create lws context");
+
+    // No log messages to stderr.
+    lws_set_log_level(0, nullptr);
+
+    // std::cout << "created context\n";
+    /* schedule the first client connection attempt to happen immediately */
+    lws_sul_schedule(context.get(), 0, &wrap.sul, client::connect, 1);
+
+
     // std::cout << "thread loop reached\n";
     while (status != ws_status::terminated) {
       // std::cout << "run service\n";
@@ -378,7 +402,7 @@ namespace {
   {
     switch (reason) {
     case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
-      lwsl_err("CLIENT_CONNECTION_ERROR: %s\n", in ? (char *)in : "(null)");
+      lwsl_err("CLIENT_CONNECTION_ERROR: %s\n", in ? (char*) in : "(null)");
       // std::cout << "going to retry\n";
       goto do_retry;
 
@@ -438,8 +462,7 @@ namespace {
                 if (EVP_DigestInit_ex(shactx.get(), EVP_sha256(), nullptr) != 1)
                   goto do_retry;
                 auto salt = d["authentication"]["salt"].asCString();
-                if (EVP_DigestUpdate(shactx.get(), password.c_str(), password.size()) != 1
-                    || EVP_DigestUpdate(shactx.get(), salt, strlen(salt)) != 1)
+                if (EVP_DigestUpdate(shactx.get(), password.c_str(), password.size()) != 1 || EVP_DigestUpdate(shactx.get(), salt, strlen(salt)) != 1)
                   goto do_retry;
                 unsigned char hashbuf[EVP_MD_size(EVP_sha256())];
                 unsigned hashbuflen = sizeof(hashbuf);
@@ -452,8 +475,7 @@ namespace {
                 if (EVP_DigestInit_ex(shactx.get(), EVP_sha256(), nullptr) != 1)
                   goto do_retry;
                 auto challenge = d["authentication"]["challenge"].asString();
-                if (EVP_DigestUpdate(shactx.get(), enchashbuf, enclen) != 1
-                    || EVP_DigestUpdate(shactx.get(), challenge.c_str(), challenge.size()) != 1)
+                if (EVP_DigestUpdate(shactx.get(), enchashbuf, enclen) != 1 || EVP_DigestUpdate(shactx.get(), challenge.c_str(), challenge.size()) != 1)
                   goto do_retry;
                 hashbuflen = sizeof(hashbuf);
                 if (EVP_DigestFinal_ex(shactx.get(), hashbuf, &hashbuflen) != 1)
@@ -466,12 +488,10 @@ namespace {
 
               send(std::move(resp), true);
             } else if (op == 2) {
-              auto queued = std::find_if(outstanding.begin(), outstanding.end(), [s=d["requestId"].asString()](const auto& e){ return s == e.d["d"]["requestId"].asString(); });
+              auto queued = std::find_if(outstanding.begin(), outstanding.end(), [s = d["requestId"].asString()](const auto& e) { return s == e.d["d"]["requestId"].asString(); });
               assert(queued != outstanding.end());
               outstanding.erase(queued);
-              if (status != ws_status::identifying
-                  || ! d.isMember("negotiatedRpcVersion")
-                  || d["negotiatedRpcVersion"].asUInt() != supported_rpcversion) [[unlikely]]
+              if (status != ws_status::identifying || ! d.isMember("negotiatedRpcVersion") || d["negotiatedRpcVersion"].asUInt() != supported_rpcversion) [[unlikely]]
                 goto do_retry;
               status = ws_status::connected;
             } else if (op == 5) {
@@ -486,7 +506,7 @@ namespace {
                 // std::cout << d << std::endl;
                 // std::cout << "---------------------\n";
 
-                auto queued = std::find_if(outstanding.begin(), outstanding.end(), [s=d["requestId"].asString()](const auto& e){ return s == e.d["d"]["requestId"].asString(); });
+                auto queued = std::find_if(outstanding.begin(), outstanding.end(), [s = d["requestId"].asString()](const auto& e) { return s == e.d["d"]["requestId"].asString(); });
                 assert(queued != outstanding.end());
                 if (queued->emit)
                   outstanding.erase(queued);
@@ -504,7 +524,7 @@ namespace {
                 // std::cout << d << std::endl;
                 // std::cout << "---------------------\n";
 
-                auto queued = std::find_if(outstanding.begin(), outstanding.end(), [s=d["requestId"].asString()](const auto& e){ return s == e.d["d"]["requestId"].asString(); });
+                auto queued = std::find_if(outstanding.begin(), outstanding.end(), [s = d["requestId"].asString()](const auto& e) { return s == e.d["d"]["requestId"].asString(); });
                 assert(queued != outstanding.end());
                 if (queued->emit)
                   outstanding.erase(queued);
@@ -515,14 +535,14 @@ namespace {
               }
             }
             // } else {
-              // There is no error code.  For incomplete messages we see an error string containing
-              //    Missing '}' or object member name
-              // or
-              //    Missing ',' or '}' in object declaration
-              // if (err.find("Missing '}'") == std::string::npos && err.find("Missing ',' or '}'") == std::string::npos && err.find("Syntax error: value, object or array") == std::string::npos) {
-              //   chunks.clear();
-              //   lwsl_err("%s: invalid JSON: %s\n", __func__, err.c_str());
-              // }
+            // There is no error code.  For incomplete messages we see an error string containing
+            //    Missing '}' or object member name
+            // or
+            //    Missing ',' or '}' in object declaration
+            // if (err.find("Missing '}'") == std::string::npos && err.find("Missing ',' or '}'") == std::string::npos && err.find("Syntax error: value, object or array") == std::string::npos) {
+            //   chunks.clear();
+            //   lwsl_err("%s: invalid JSON: %s\n", __func__, err.c_str());
+            // }
           }
 
           chunks.clear();
